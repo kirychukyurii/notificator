@@ -34,7 +34,10 @@ func (c *TelegramConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	return nil
 }
 
-type SlackConfig struct{}
+type SlackConfig struct {
+	AppToken string `yaml:"app_token" json:"app_token"`
+	BotToken string `yaml:"bot_token" json:"bot_token"`
+}
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -47,7 +50,10 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-type SkypeConfig struct{}
+type SkypeConfig struct {
+	Login    string
+	Password string
+}
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *SkypeConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
