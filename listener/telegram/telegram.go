@@ -2,51 +2,37 @@ package telegram
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
+	"sync/atomic"
 
-	boltstor "github.com/gotd/contrib/bbolt"
-	"github.com/gotd/contrib/middleware/floodwait"
-	"github.com/gotd/contrib/middleware/ratelimit"
-	"github.com/gotd/contrib/storage"
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/auth"
-	"github.com/gotd/td/telegram/message/peer"
-	"github.com/gotd/td/telegram/query"
 	"github.com/gotd/td/telegram/updates"
+	"github.com/gotd/td/telegram/updates/hook"
 	"github.com/gotd/td/tg"
 	"github.com/webitel/wlog"
-	"go.etcd.io/bbolt"
-	"golang.org/x/time/rate"
 
 	"github.com/kirychukyurii/notificator/config"
+	"github.com/kirychukyurii/notificator/model"
+	"github.com/kirychukyurii/notificator/notify"
 )
 
 type Telegram struct {
-	log *wlog.Logger
-	cfg *config.TelegramConfig
+	log   *wlog.Logger
+	cfg   *config.TelegramConfig
+	queue *notify.Queue
+	cli   *telegram.Client
+	gaps  *updates.Manager
 
-	tg *tgres
+	listen *atomic.Bool
 
-	cancel context.CancelFunc
+	stopFunc stopFunc
 }
 
-type tgres struct {
-	auth            auth.Flow
-	peerDB          *boltstor.PeerStorage
-	waiter          *floodwait.Waiter
-	updatesRecovery *updates.Manager
-	cli             *telegram.Client
-}
-
-func New(cfg *config.TelegramConfig, log *wlog.Logger) (*Telegram, error) {
-	t := &Telegram{
-		log: log,
-		cfg: cfg,
-	}
-
+func New(cfg *config.TelegramConfig, log *wlog.Logger, queue *notify.Queue) (*Telegram, error) {
 	// Setting up session storage.
 	// This is needed to reuse session and not login every time.
 	sessionDir := filepath.Join("session", sessionFolder(cfg.Phone))
@@ -59,150 +45,78 @@ func New(cfg *config.TelegramConfig, log *wlog.Logger) (*Telegram, error) {
 		Path: filepath.Join(sessionDir, "session.json"),
 	}
 
-	// Setting up client.
-	//
 	// Dispatcher is used to register handlers for events.
 	dispatcher := tg.NewUpdateDispatcher()
 
-	// Registering handler for new private messages.
-	dispatcher.OnNewMessage(t.onNewMessage)
+	listen := &atomic.Bool{}
 
-	// Setting up persistent storage for qts/pts to be able to
-	// recover after restart.
-	boltdb, err := bbolt.Open(filepath.Join(sessionDir, "updates.bolt.db"), 0666, nil)
-	if err != nil {
-		return nil, fmt.Errorf("create bolt storage: %v", err)
-	}
-
-	peerDB := boltstor.NewPeerStorage(boltdb, []byte("peer_store"))
-
-	// Setting up update handler that will fill peer storage before
-	// calling dispatcher handlers.
-	updateHandler := storage.UpdateHook(dispatcher, peerDB)
-	updatesRecovery := updates.New(updates.Config{
-		Handler: updateHandler, // using previous handler with peerDB
-		Storage: boltstor.NewStateStorage(boltdb),
-	})
-
-	// Handler of FLOOD_WAIT that will automatically retry request.
-	waiter := floodwait.NewWaiter().WithCallback(func(ctx context.Context, wait floodwait.FloodWait) {
-		log.Warn("got FLOOD_WAIT, retry after", wlog.Any("retry", wait.Duration))
+	// Registering handler for new private messages or in a basic group.
+	dispatcher.OnNewMessage(onNewMessage(listen, queue))
+	gaps := updates.New(updates.Config{
+		Handler: dispatcher,
 	})
 
 	options := telegram.Options{
-		SessionStorage: sessionStorage,  // Setting up session sessionStorage to store auth data.
-		UpdateHandler:  updatesRecovery, // Setting up handler for updates from server.
+		SessionStorage: sessionStorage, // Setting up session sessionStorage to store auth data.
+		UpdateHandler:  gaps,
 		Middlewares: []telegram.Middleware{
-
-			// Setting up FLOOD_WAIT handler to automatically wait and retry request.
-			waiter,
-
-			// Setting up general rate limits to less likely get flood wait errors.
-			ratelimit.New(rate.Every(time.Millisecond*100), 5),
+			hook.UpdateHook(gaps.Handle),
 		},
 	}
 
 	client := telegram.NewClient(cfg.AppID, cfg.AppHash, options)
-
-	// Setting up resolver cache that will use peer storage.
-	resolver := storage.NewResolverCache(peer.Plain(client.API()), peerDB)
-	// Usage:
-	//   if _, err := resolver.ResolveDomain(ctx, "tdlibchat"); err != nil {
-	//	   return errors.Wrap(err, "resolve")
-	//   }
-	_ = resolver
+	stop, err := connect(context.TODO(), client)
+	if err != nil {
+		return nil, err
+	}
 
 	// Authentication flow handles authentication process, like prompting for code and 2FA password.
 	flow := auth.NewFlow(Auth{phone: cfg.Phone}, auth.SendCodeOptions{})
-
-	res := &tgres{
-		auth:            flow,
-		peerDB:          peerDB,
-		waiter:          waiter,
-		updatesRecovery: updatesRecovery,
-		cli:             client,
+	if err := client.Auth().IfNecessary(context.Background(), flow); err != nil {
+		return nil, err
 	}
 
-	t.tg = res
+	self, err := client.Self(context.TODO())
+	if err != nil {
+		return nil, err
+	}
 
-	return t, nil
+	log.Info("logged user", wlog.String("first_name", self.FirstName), wlog.String("last_name", self.LastName),
+		wlog.String("username", self.Username), wlog.Int64("id", self.ID))
+
+	return &Telegram{
+		log:      log,
+		cfg:      cfg,
+		queue:    queue,
+		cli:      client,
+		gaps:     gaps,
+		listen:   listen,
+		stopFunc: stop,
+	}, nil
 }
 
 func (t *Telegram) Listen(ctx context.Context) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	t.cancel = cancel
-	exit := make(chan error, 1)
-
-	go func() {
-		defer close(exit)
-		exit <- t.tg.waiter.Run(ctx, func(ctx context.Context) error {
-			if err := t.tg.cli.Run(ctx, func(ctx context.Context) error {
-				// Perform auth if no session is available.
-				if err := t.tg.cli.Auth().IfNecessary(ctx, t.tg.auth); err != nil {
-					return fmt.Errorf("auth: %v", err)
-				}
-
-				// Getting info about current user.
-				self, err := t.tg.cli.Self(ctx)
-				if err != nil {
-					return fmt.Errorf("call self: %v", err)
-				}
-
-				t.log.Info("logged user", wlog.String("first_name", self.FirstName), wlog.String("last_name", self.LastName),
-					wlog.String("username", self.Username), wlog.Int64("id", self.ID))
-
-				if t.cfg.FillPeersOnStart {
-					t.log.Info("filling peer storage from dialogs to cache entities")
-					collector := storage.CollectPeers(t.tg.peerDB)
-					if err := collector.Dialogs(ctx, query.GetDialogs(t.tg.cli.API()).Iter()); err != nil {
-						return fmt.Errorf("collect peers: %v", err)
-					}
-				}
-
-				t.log.Info("listening for updates")
-				return t.tg.updatesRecovery.Run(ctx, t.tg.cli.API(), self.ID, updates.AuthOptions{
-					IsBot: self.Bot,
-					OnStart: func(ctx context.Context) {
-						t.log.Info("update recovery initialized and started, listening for events")
-					},
-				})
-			}); err != nil {
-				return err
-			}
-
-			return nil
-		})
-	}()
-
-	select {
-	case <-ctx.Done(): // context canceled
-		return ctx.Err()
-	case err := <-exit: // startup timeout
-		return err
-	}
-}
-
-func (t *Telegram) onNewMessage(ctx context.Context, e tg.Entities, u *tg.UpdateNewMessage) error {
-	msg, ok := u.Message.(*tg.Message)
-	if !ok {
-		return nil
-	}
-	if msg.Out {
-		// Outgoing message.
-		return nil
-	}
-
-	// Use PeerID to find peer because *Short updates does not contain any entities, so it necessary to
-	// store some entities.
-	//
-	// Storage can be filled using PeerCollector (i.e. fetching all dialogs first).
-	p, err := storage.FindPeer(ctx, t.tg.peerDB, msg.GetPeerID())
+	status, err := t.cli.Auth().Status(ctx)
 	if err != nil {
 		return err
 	}
 
-	t.log.Info("recv message", wlog.String("peer", p.String()))
+	if !status.Authorized {
+		return fmt.Errorf("telegram: not authorized")
+	}
+
+	opts := updates.AuthOptions{
+		IsBot: status.User.Bot,
+		OnStart: func(ctx context.Context) {
+			t.log.Info("update recovery initialized and started, listening for events")
+		},
+	}
+
+	t.listen.Store(true)
+	defer t.listen.Store(false)
+	if err := t.gaps.Run(ctx, t.cli.API(), status.User.ID, opts); err != nil {
+		return fmt.Errorf("update recovery initialization: %v", err)
+	}
 
 	return nil
 }
@@ -212,11 +126,54 @@ func (t *Telegram) String() string {
 }
 
 func (t *Telegram) Close() error {
-	if t.cancel != nil {
-		t.cancel()
+	if t.stopFunc != nil {
+		return t.stopFunc()
 	}
 
 	return nil
+}
+
+// stopFunc closes Client and waits until Run returns.
+type stopFunc func() error
+
+// Connect blocks until a client is connected,
+// calling Run internally in the background.
+func connect(ctx context.Context, client *telegram.Client) (stopFunc, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	errC := make(chan error, 1)
+	initDone := make(chan struct{})
+	go func() {
+		defer close(errC)
+		errC <- client.Run(ctx, func(ctx context.Context) error {
+			close(initDone)
+			<-ctx.Done()
+			if errors.Is(ctx.Err(), context.Canceled) {
+				return nil
+			}
+
+			return ctx.Err()
+		})
+	}()
+
+	select {
+	case <-ctx.Done(): // context canceled
+		cancel()
+
+		return func() error { return nil }, ctx.Err()
+	case err := <-errC: // startup timeout
+		cancel()
+
+		return func() error { return nil }, err
+	case <-initDone: // init done
+	}
+
+	stopFn := func() error {
+		cancel()
+
+		return <-errC
+	}
+
+	return stopFn, nil
 }
 
 func sessionFolder(phone string) string {
@@ -228,4 +185,35 @@ func sessionFolder(phone string) string {
 	}
 
 	return "phone-" + string(out)
+}
+
+// onNewMessage handles new private messages or messages in a basic group.
+// See: https://core.telegram.org/constructor/updateNewMessage
+func onNewMessage(listen *atomic.Bool, queue *notify.Queue) tg.NewMessageHandler {
+	return func(ctx context.Context, e tg.Entities, update *tg.UpdateNewMessage) error {
+		if !listen.Load() {
+			return nil
+		}
+
+		msg, ok := update.Message.(*tg.Message)
+		if !ok {
+			return nil
+		}
+
+		if msg.Out {
+			// Outgoing message.
+			return nil
+		}
+
+		if _, ok := msg.GetViaBotID(); ok {
+			return nil
+		}
+
+		queue.Push(&model.Alert{
+			Channel: "telegram",
+			Text:    msg.Message,
+		})
+
+		return nil
+	}
 }

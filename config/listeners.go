@@ -7,10 +7,6 @@ var (
 )
 
 type Listeners struct {
-	Start     []string `yaml:"start" json:"start"`
-	Stop      []string `yaml:"stop" json:"stop"`
-	GroupWait string   `yaml:"group_wait" json:"group_wait"`
-
 	TelegramConfigs []*TelegramConfig `yaml:"telegram_configs" json:"telegram_configs"`
 	SlackConfigs    []*SlackConfig    `yaml:"slack_configs" json:"slack_configs"`
 	SkypeConfigs    []*SkypeConfig    `yaml:"skype_configs" json:"skype_configs"`

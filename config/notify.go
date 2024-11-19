@@ -9,7 +9,9 @@ var (
 	}
 )
 
-type Receivers struct {
+type Notifiers struct {
+	StdOut bool `yaml:"stdout" json:"stdout"`
+	
 	WebhookConfigs []*WebhookConfig `yaml:"webhook_configs" json:"webhook_configs"`
 	WebitelConfigs []*WebitelConfig `yaml:"webitel_configs" json:"webitel_configs"`
 }

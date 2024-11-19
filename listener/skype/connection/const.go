@@ -1,4 +1,4 @@
-package skype
+package connection
 
 const DEFAULT_USER string = "ME"
 const DEFAULT_ENDPOINT string = "SELF"

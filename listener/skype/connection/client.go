@@ -1,4 +1,4 @@
-package skype
+package connection
 
 import (
 	"fmt"
@@ -91,7 +91,6 @@ func (c *client) LoginSRF(path string, params url.Values) (string, string, strin
 		MSPRequ, MSPOK, ppftStr string
 	)
 
-	// 从 内容中匹配出来  PPFT
 	buf := `<input.*?name="PPFT".*?value="(.*?)` + `\"`
 	reg := regexp.MustCompile(buf)
 	ppfts := reg.FindAllString(body, -1)

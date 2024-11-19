@@ -1,96 +1,111 @@
 package manager
 
 import (
-	"context"
 	"fmt"
 
-	"github.com/fasthttp/router"
 	"github.com/mymmrac/telego"
+	th "github.com/mymmrac/telego/telegohandler"
 	tu "github.com/mymmrac/telego/telegoutil"
-	"github.com/valyala/fasthttp"
-	"golang.ngrok.com/ngrok"
-	nc "golang.ngrok.com/ngrok/config"
-	"golang.org/x/sync/errgroup"
+	"github.com/webitel/wlog"
 
 	"github.com/kirychukyurii/notificator/config"
 )
 
 type Bot struct {
+	cfg *config.Manager
+	log *wlog.Logger
 	cli *telego.Bot
+	bh  *th.BotHandler
 
-	message *telego.SendMessageParams
-	updates <-chan telego.Update
-
-	eg *errgroup.Group
+	onduty chan string
 }
 
-func NewBot(cfg *config.Manager) (*Bot, error) {
+func NewBot(cfg *config.Manager, log *wlog.Logger) (*Bot, error) {
 	bot, err := telego.NewBot(cfg.BotID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Create a new Ngrok tunnel to connect local network with the Internet & have HTTPS domain for bot
-	tun, err := ngrok.Listen(context.Background(),
-		// Forward connections to localhost:8080
-		nc.HTTPEndpoint(nc.WithForwardsTo(":8080")),
-		// Authenticate into Ngrok using NGROK_AUTHTOKEN env (optional)
-		ngrok.WithAuthtokenFromEnv(),
-	)
+	opts := &telego.GetUpdatesParams{
+		AllowedUpdates: []string{"callback_query"},
+	}
 
-	// Prepare fast HTTP server
-	srv := &fasthttp.Server{}
+	updates, err := bot.UpdatesViaLongPolling(opts)
+	if err != nil {
+		return nil, err
+	}
 
-	// Get an update channel from webhook using Ngrok
-	updates, _ := bot.UpdatesViaWebhook("/bot"+bot.Token(),
-		// Set func server with fast http server inside that will be used to handle webhooks
-		telego.WithWebhookServer(telego.FuncWebhookServer{
-			Server: telego.FastHTTPWebhookServer{
-				Logger: bot.Logger(),
-				Server: srv,
-				Router: router.New(),
-			},
-			// Override default start func to use Ngrok tunnel
-			// Note: When server is stopped, the Ngrok tunnel always returns an error, so it should be handled by user
-			StartFunc: func(_ string) error {
-				return srv.Serve(tun)
-			},
-		}),
-
-		// Calls SetWebhook before starting webhook and provide dynamic Ngrok tunnel URL
-		telego.WithWebhookSet(&telego.SetWebhookParams{
-			URL: tun.URL() + "/bot" + bot.Token(),
-		}),
-	)
+	// Create bot handler with stop timeout
+	bh, err := th.NewBotHandler(bot, updates)
+	if err != nil {
+		return nil, err
+	}
 
 	return &Bot{
-		cli:     bot,
-		message: tu.Message(tu.ID(cfg.ChatID), "Choose technical"),
-		updates: updates,
-		eg:      &errgroup.Group{},
+		cfg:    cfg,
+		log:    log,
+		cli:    bot,
+		bh:     bh,
+		onduty: make(chan string),
 	}, nil
 }
 
-func (b *Bot) Listen() error {
-	b.eg.Go(func() error {
-		return b.cli.StartWebhook("")
-	})
-
-	b.eg.Go(func() error {
-		for update := range b.updates {
-			fmt.Printf("Update: %+v\n", update)
-		}
-
-		return nil
-	})
-
-	if err := b.eg.Wait(); err != nil {
-		return err
-	}
+func (b *Bot) Close() error {
+	b.cli.StopLongPolling()
+	b.bh.Stop()
+	close(b.onduty)
 
 	return nil
 }
 
-func (b *Bot) Close() error {
-	return b.cli.Close()
+func (b *Bot) SendMessage(technicals []*config.Technical) error {
+	var row []telego.InlineKeyboardButton
+	var rows [][]telego.InlineKeyboardButton
+
+	for _, technical := range technicals {
+		row = append(row, tu.InlineKeyboardButton(technical.Name).WithCallbackData(technical.Phone))
+		if len(row) == 2 {
+			rows = append(rows, row)
+			row = row[:0]
+		}
+	}
+
+	message := tu.Message(tu.ID(b.cfg.ChatID), "Choose technical").WithReplyMarkup(tu.InlineKeyboard(rows...))
+	m, err := b.cli.SendMessage(message)
+	if err != nil {
+		return err
+	}
+
+	b.log.Info(fmt.Sprintf("message was sent to %d, please, choose technical onduty", b.cfg.ChatID), wlog.Any("technicals", technicals))
+
+	b.bh.Handle(b.handle(m.MessageID))
+	go b.bh.Start()
+
+	return nil
+}
+
+func (b *Bot) OnDuty() chan string {
+	return b.onduty
+}
+
+func (b *Bot) handle(id int) th.Handler {
+	return func(bot *telego.Bot, update telego.Update) {
+		if id == update.CallbackQuery.Message.GetMessageID() {
+			b.log.Info("received onduty technical", wlog.String("phone", update.CallbackQuery.Data))
+			b.onduty <- update.CallbackQuery.Data
+
+			opts := &telego.EditMessageTextParams{
+				ChatID: telego.ChatID{
+					ID: b.cfg.ChatID,
+				},
+				MessageID: update.CallbackQuery.Message.GetMessageID(),
+				Text:      fmt.Sprintf("Received onduty technical: %s", update.CallbackQuery.Data),
+			}
+
+			_, err := bot.EditMessageText(opts)
+			if err != nil {
+				return
+			}
+		}
+	}
 }

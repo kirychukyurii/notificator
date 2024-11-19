@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -15,6 +16,8 @@ import (
 
 	"github.com/kirychukyurii/notificator/config"
 	"github.com/kirychukyurii/notificator/listener"
+	"github.com/kirychukyurii/notificator/manager"
+	"github.com/kirychukyurii/notificator/notify"
 )
 
 func listenCommand(cfg *config.Config, log *wlog.Logger) *cobra.Command {
@@ -67,9 +70,14 @@ func listenCommand(cfg *config.Config, log *wlog.Logger) *cobra.Command {
 }
 
 type App struct {
-	cfg       *config.Config
-	log       *wlog.Logger
+	cfg *config.Config
+	log *wlog.Logger
+
 	scheduler *listener.Scheduler
+	queue     *notify.Queue
+
+	mgr       *manager.Bot
+	listeners []listener.Listener
 
 	// Closed once the App has finished starting
 	startedCh chan struct{}
@@ -79,9 +87,35 @@ type App struct {
 }
 
 func New(cfg *config.Config, log *wlog.Logger) (*App, error) {
+	timezone, err := time.LoadLocation(cfg.Timezone)
+	if err != nil {
+		return nil, fmt.Errorf("load default timezone: %v", err)
+	}
+
+	scheduler := listener.NewScheduler(log, timezone)
+	notifiers, err := notify.NewNotifiers(log, cfg.Notifiers)
+	if err != nil {
+		return nil, err
+	}
+
+	mgr, err := manager.NewBot(cfg.Manager, log)
+	if err != nil {
+		return nil, err
+	}
+
+	q := notify.NewQueue(log, cfg.GroupWait, notifiers)
+	listeners, err := listener.NewListeners(log, cfg.Listeners, q)
+	if err != nil {
+		return nil, err
+	}
+
 	return &App{
 		cfg:       cfg,
 		log:       log,
+		scheduler: scheduler,
+		queue:     q,
+		mgr:       mgr,
+		listeners: listeners,
 		startedCh: make(chan struct{}),
 		eg:        &errgroup.Group{},
 	}, nil
@@ -93,50 +127,75 @@ func (a *App) Run(ctx context.Context) error {
 	defer close(a.startedCh)
 	a.errCh = make(chan error, 100)
 
-	timezone, err := time.LoadLocation(a.cfg.Timezone)
-	if err != nil {
-		return fmt.Errorf("load default timezone: %v", err)
+	logSchedJob := func(job gocron.Job) {
+		a.log.Info("start scheduled job", wlog.Any("tags", job.Tags()), wlog.Any("next_run_at", job.NextRun()), wlog.Int("run_count", job.RunCount()))
 	}
 
-	scheduler := listener.NewScheduler(timezone)
-	ls, err := listener.NewListeners(a.log, a.cfg.Listeners)
-	if err != nil {
-		return err
-	}
+	for i, start := range a.cfg.Start {
+		f := func(job gocron.Job) error {
+			logSchedJob(job)
+			if err := a.mgr.SendMessage(a.cfg.Technicals); err != nil {
+				return err
+			}
 
-	for i, start := range a.cfg.Listeners.Start {
-		_, err := scheduler.ScheduleJob(start, fmt.Sprintf("start-%d", i), func(job gocron.Job) error {
-			for _, l := range ls {
-				if err := l.Listen(ctx); err != nil {
-					return err
+			var onduty *config.Technical
+			select {
+			case phone := <-a.mgr.OnDuty():
+				for _, t := range a.cfg.Technicals {
+					if t.Phone == phone {
+						t.OnDuty = true
+						onduty = t
+					}
 				}
 			}
 
-			return nil
-		})
+			if err := a.mgr.Close(); err != nil {
+				return err
+			}
 
+			go a.queue.Process(ctx, onduty)
+
+			wg := &sync.WaitGroup{}
+			for _, l := range a.listeners {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					if err := l.Listen(ctx); err != nil {
+						a.log.Error("listen events", wlog.Err(err), wlog.String("listener", l.String()))
+					}
+				}()
+			}
+
+			wg.Wait()
+
+			return nil
+		}
+
+		_, err := a.scheduler.ScheduleJob(start, fmt.Sprintf("start-%d", i), f)
 		if err != nil {
 			return err
 		}
 	}
 
-	for i, stop := range a.cfg.Listeners.Stop {
-		_, err := scheduler.ScheduleJob(stop, fmt.Sprintf("stop-%d", i), func(job gocron.Job) error {
-			for _, l := range ls {
+	for i, stop := range a.cfg.Stop {
+		f := func(job gocron.Job) error {
+			logSchedJob(job)
+			for _, l := range a.listeners {
 				if err := l.Close(); err != nil {
 					return err
 				}
 			}
 
 			return nil
-		})
+		}
 
+		_, err := a.scheduler.ScheduleJob(stop, fmt.Sprintf("stop-%d", i), f)
 		if err != nil {
 			return err
 		}
 	}
 
-	a.log.Info("app started")
+	a.log.Info("app started, wait for scheduled jobs")
 
 	// App blocks until it receives a signal to exit
 	// this signal may come from the node or from sig-abort (ctrl-c)

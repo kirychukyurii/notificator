@@ -1,4 +1,4 @@
-package skype
+package connection
 
 type Presence string
 

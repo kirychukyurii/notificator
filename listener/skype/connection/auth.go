@@ -1,4 +1,4 @@
-package skype
+package connection
 
 import (
 	"crypto/sha256"
@@ -50,6 +50,8 @@ type Profile struct {
 	RichMood    string   `json:"rich_mood"`
 	Username    string   `json:"username"` // live:xxxxxxx
 }
+
+// TODO: store skype session (token) in session file (as telegram)
 
 type Auth struct {
 	loggedIn    bool
@@ -117,7 +119,9 @@ func (a *Auth) IsLoginInProgress() bool {
 	return a.sessionLock == 1
 }
 
+// AuthLive (legacy) authentication for accounts with Skype usernames and phone numbers.
 func (a *Auth) AuthLive(username, password string) error {
+	// This will redirect to login.live.com. Collect the value of the hidden field named PPFT.
 	MSPRequ, MSPOK, PPFT, err := a.getParams()
 	if MSPOK == "" || MSPRequ == "" || PPFT == "" || err != nil {
 		return fmt.Errorf("get params: one of MSPRequ, MSPOK, PPFT is empty: %w", err)
@@ -157,6 +161,7 @@ func (a *Auth) AuthLive(username, password string) error {
 	return nil
 }
 
+// SOAP authentication for Microsoft accounts with an email address as the username.
 func (a *Auth) SOAP(username, password string) error {
 	type RequestedSecurityToken struct {
 		BinarySecurityToken string `xml:"BinarySecurityToken"`
@@ -183,9 +188,9 @@ func (a *Auth) SOAP(username, password string) error {
 	}
 
 	type EnvelopeXML struct {
-		XMLName xml.Name      `xml:"Envelope"` // 指定最外层的标签为config
-		Header  string        `xml:"Header"`   // 读取smtpServer配置项，并将结果保存到SmtpServer变量中
-		Body    EnvelopeBody  `xml:"Body"`     // 读取receivers标签下的内容，以结构方式获取
+		XMLName xml.Name      `xml:"Envelope"`
+		Header  string        `xml:"Header"`
+		Body    EnvelopeBody  `xml:"Body"`
 		Fault   EnvelopeFault `xml:"Fault"`
 	}
 
@@ -270,7 +275,7 @@ func (a *Auth) SOAP(username, password string) error {
 	}
 
 	if edgeResp.SkypeToken == "" || edgeResp.ExpiresIn == 0 {
-		return fmt.Errorf("err status code: %s, status text: %s,", strconv.FormatInt(int64(edgeResp.Status.Code), 10), edgeResp.Status.Text)
+		return fmt.Errorf("err status code: %s, status text: %s", strconv.FormatInt(int64(edgeResp.Status.Code), 10), edgeResp.Status.Text)
 	}
 
 	a.session = &Session{
@@ -361,19 +366,18 @@ func (a *Auth) GetUserId(skypetoken string) error {
 	return nil
 }
 
+// getParams This will redirect to login.live.com. Collect the value of the hidden field named PPFT.
 func (a *Auth) getParams() (MSPRequ, MSPOK, PPFT string, err error) {
 	params := url.Values{}
 	params.Set("client_id", "578134")
 	params.Set("redirect_uri", "https://web.skype.com")
 	req := newClient(30 * time.Second)
 
-	// 第一步, 302重定向跳转
 	redirectUrl, _, err := req.Get(fmt.Sprintf("%s/oauth/microsoft?%s", API_LOGIN, gurl.BuildQuery(params)), nil, nil)
 	if err != nil {
 		return "", "", "", fmt.Errorf("recieve redirect url: %w", err)
 	}
 
-	// 请求跳转的链接
 	loginSpfParam := url.Values{}
 	MSPRequ, MSPOK, ppftStr, err := req.LoginSRF(redirectUrl, loginSpfParam)
 	if err != nil {
@@ -515,7 +519,7 @@ func (a *Auth) getToken(t string) error {
 	var (
 		token, expires string
 	)
-	// 获取登录信息值
+
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(body))
 	if err != nil {
 		return err

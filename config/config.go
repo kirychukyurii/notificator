@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -29,8 +30,12 @@ type Config struct {
 	Manager    *Manager     `yaml:"manager" json:"manager"`
 	Technicals []*Technical `yaml:"technicals" json:"technicals"`
 
+	Start     []string      `yaml:"start" json:"start"`
+	Stop      []string      `yaml:"stop" json:"stop"`
+	GroupWait time.Duration `yaml:"group_wait" json:"group_wait"`
+
 	Listeners *Listeners `yaml:"listeners" json:"listeners"`
-	Receivers *Receivers `yaml:"receivers" json:"receivers"`
+	Notifiers *Notifiers `yaml:"notifiers" json:"notifiers"`
 }
 
 func New(filename string) (*Config, error) {
