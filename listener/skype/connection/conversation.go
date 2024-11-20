@@ -1,7 +1,6 @@
 package connection
 
 import (
-	"fmt"
 	"strings"
 )
 
@@ -41,27 +40,21 @@ type Resource struct {
 	} `json:"properties"`
 }
 
-func (Re *Resource) GetFromMe(ce *Connection) bool {
-	if Re.ConversationLink != "" {
-		ConversationLinkArr := strings.Split(Re.ConversationLink, "/conversations/")
-		Re.Jid = ConversationLinkArr[1]
+func (r *Resource) GetFromMe(ce *Connection) bool {
+	if r.ConversationLink != "" {
+		ConversationLinkArr := strings.Split(r.ConversationLink, "/conversations/")
+		r.Jid = ConversationLinkArr[1]
 	}
 
-	if Re.From != "" {
-		FromArr := strings.Split(Re.From, "/contacts/")
-		Re.SendId = FromArr[1]
+	if r.From != "" {
+		FromArr := strings.Split(r.From, "/contacts/")
+		r.SendId = FromArr[1]
 	}
 
-	if ce.auth.profile != nil && ce.auth.profile.Username != "" && "8:"+ce.auth.profile.Username == Re.SendId {
-		fmt.Println()
-		fmt.Println("GetFromMe true: ", ce.auth.profile.Username, Re.SendId)
-		fmt.Println()
+	if ce.auth.profile != nil && ce.auth.profile.Username != "" && "8:"+ce.auth.profile.Username == r.SendId {
 		return true
-	} else {
-		fmt.Println()
-		fmt.Println("GetFromMe false: ", ce.auth.profile, Re.SendId)
-		fmt.Println()
 	}
+	
 	return false
 }
 

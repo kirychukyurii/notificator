@@ -28,47 +28,6 @@ func newClient(timeout time.Duration) *client {
 	}
 }
 
-func (c *client) Get(reqUrl string, cookies map[string]string, header map[string]string) (string, int, error) {
-	resp, err := c.request(http.MethodGet, reqUrl, nil, cookies, header)
-	if err != nil {
-		return "", 0, err
-	}
-
-	defer resp.Body.Close()
-
-	content, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", 0, err
-	}
-
-	body := string(content)
-	if resp.StatusCode == http.StatusFound {
-		body = resp.Header.Get("Location")
-	}
-
-	return body, resp.StatusCode, nil
-}
-func (c *client) Post(reqUrl string, reqBody io.Reader, cookies map[string]string, header map[string]string) (string, int, error) {
-	resp, err := c.request(http.MethodPost, reqUrl, reqBody, cookies, header)
-	if err != nil {
-		return "", 0, err
-	}
-
-	defer resp.Body.Close()
-
-	content, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", 0, err
-	}
-
-	body := string(content)
-	if resp.StatusCode == http.StatusFound {
-		body = resp.Header.Get("Location")
-	}
-
-	return body, resp.StatusCode, nil
-}
-
 func (c *client) LoginSRF(path string, params url.Values) (string, string, string, error) {
 	resp, err := c.request(http.MethodGet, fmt.Sprintf("%s?%s", path, gurl.BuildQuery(params)), nil, nil, nil)
 	if err != nil {
@@ -132,6 +91,68 @@ func (c *client) RegistrationToken(path string, data string, header map[string]s
 	location := resp.Header.Get("Location")
 
 	return registrationToken, location, nil
+}
+
+func (c *client) Get(reqUrl string, cookies map[string]string, header map[string]string) (string, int, error) {
+	resp, err := c.request(http.MethodGet, reqUrl, nil, cookies, header)
+	if err != nil {
+		return "", 0, err
+	}
+
+	defer resp.Body.Close()
+
+	content, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", 0, err
+	}
+
+	body := string(content)
+	if resp.StatusCode == http.StatusFound {
+		body = resp.Header.Get("Location")
+	}
+
+	return body, resp.StatusCode, nil
+}
+func (c *client) Post(reqUrl string, reqBody io.Reader, cookies map[string]string, header map[string]string) (string, int, error) {
+	resp, err := c.request(http.MethodPost, reqUrl, reqBody, cookies, header)
+	if err != nil {
+		return "", 0, err
+	}
+
+	defer resp.Body.Close()
+
+	content, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", 0, err
+	}
+
+	body := string(content)
+	if resp.StatusCode == http.StatusFound {
+		body = resp.Header.Get("Location")
+	}
+
+	return body, resp.StatusCode, nil
+}
+
+func (c *client) Delete(reqUrl string, cookies map[string]string, header map[string]string) (string, int, error) {
+	resp, err := c.request(http.MethodDelete, reqUrl, nil, cookies, header)
+	if err != nil {
+		return "", 0, err
+	}
+
+	defer resp.Body.Close()
+
+	content, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", 0, err
+	}
+
+	body := string(content)
+	if resp.StatusCode == http.StatusFound {
+		body = resp.Header.Get("Location")
+	}
+
+	return body, resp.StatusCode, nil
 }
 
 func (c *client) request(method string, reqUrl string, reqBody io.Reader, cookies map[string]string, header map[string]string) (*http.Response, error) {

@@ -26,7 +26,7 @@ type Connection struct {
 // If a token file path is present, it will be used if valid.
 // On a successful connection, the token file will also be written to.
 func NewConnection(log *wlog.Logger, username, password string) (*Connection, error) {
-	auth, err := Login(username, password)
+	auth, err := login(username, password)
 	if err != nil {
 		return nil, err
 	}
@@ -153,8 +153,25 @@ func (c *Connection) Poll(subscribed chan<- bool) error {
 	return nil
 }
 
+func (c *Connection) Unsubscribe() error {
+	req := newClient(60 * time.Second)
+	subscribePath := c.subscribePath()
+	header := map[string]string{
+		"Authentication":    "skypetoken=" + c.auth.session.SkypeToken,
+		"RegistrationToken": c.auth.session.RegistrationTokenStr,
+		"BehaviorOverride":  "redirectAs404",
+	}
+
+	_, _, err := req.Delete(subscribePath, nil, header)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (c *Connection) reLoginWithSubscribes() error {
-	auth, err := Login(c.auth.session.Username, c.auth.session.Password)
+	auth, err := login(c.auth.session.Username, c.auth.session.Password)
 	if err != nil {
 		return err
 	}
@@ -167,8 +184,8 @@ func (c *Connection) reLoginWithSubscribes() error {
 	return nil
 }
 
-// Subscribe will subscribe to events.
-// Events provide real-time information for messages sent and received in conversations,
+// Subscribe will subscribe to events, that provides
+// real-time information for messages sent and received in conversations,
 // as well as endpoint and presence changes
 func (c *Connection) subscribe() error {
 	req := newClient(60 * time.Second)
@@ -190,14 +207,18 @@ func (c *Connection) subscribe() error {
 		"BehaviorOverride":  "redirectAs404",
 	}
 
-	params, _ := json.Marshal(data)
-	_, status, err := req.Post(subscribePath, strings.NewReader(string(params)), nil, header)
+	params, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	body, status, err := req.Post(subscribePath, strings.NewReader(string(params)), nil, header)
 	if err != nil {
 		return err
 	}
 
 	if status != http.StatusCreated {
-		return fmt.Errorf("unable to subscribe to resources: code: %d", status)
+		return fmt.Errorf("unable to subscribe to resources: code: %d, body: %s", status, body)
 	}
 
 	return nil

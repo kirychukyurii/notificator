@@ -1,6 +1,8 @@
 package skype
 
 import (
+	"sync/atomic"
+
 	"github.com/webitel/wlog"
 
 	"github.com/kirychukyurii/notificator/listener/skype/connection"
@@ -11,14 +13,16 @@ import (
 var _ connection.TextMessageHandler = &handler{}
 
 type handler struct {
-	log   *wlog.Logger
-	queue *notify.Queue
+	log    *wlog.Logger
+	queue  *notify.Queue
+	listen *atomic.Bool
 }
 
-func newHandler(log *wlog.Logger, queue *notify.Queue) *handler {
+func newHandler(log *wlog.Logger, queue *notify.Queue, listen *atomic.Bool) *handler {
 	return &handler{
-		log:   log,
-		queue: queue,
+		log:    log,
+		queue:  queue,
+		listen: listen,
 	}
 }
 
@@ -27,6 +31,10 @@ func (h *handler) HandleError(err error) {
 }
 
 func (h *handler) HandleTextMessage(message connection.Resource) {
+	if !h.listen.Load() {
+		return
+	}
+
 	h.queue.Push(&model.Alert{
 		Channel: "skype",
 		Text:    message.Content,

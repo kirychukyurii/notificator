@@ -2,6 +2,7 @@ package skype
 
 import (
 	"context"
+	"sync/atomic"
 
 	"github.com/webitel/wlog"
 
@@ -11,7 +12,8 @@ import (
 )
 
 type Manager struct {
-	cli *connection.Connection
+	cli    *connection.Connection
+	listen *atomic.Bool
 }
 
 func New(cfg *config.SkypeConfig, log *wlog.Logger, queue *notify.Queue) (*Manager, error) {
@@ -20,14 +22,17 @@ func New(cfg *config.SkypeConfig, log *wlog.Logger, queue *notify.Queue) (*Manag
 		return nil, err
 	}
 
-	c.AddHandler(newHandler(log, queue))
+	listen := &atomic.Bool{}
+	c.AddHandler(newHandler(log, queue, listen))
 
 	return &Manager{
-		cli: c,
+		cli:    c,
+		listen: listen,
 	}, nil
 }
 
 func (m *Manager) Listen(ctx context.Context) error {
+	m.listen.Store(true)
 	subscribed := make(chan bool, 1)
 	errCh := make(chan error, 1)
 	go func() {
@@ -53,5 +58,6 @@ func (m *Manager) String() string {
 }
 
 func (m *Manager) Close() error {
-	return nil
+	m.listen.Store(false)
+	return m.cli.Unsubscribe()
 }

@@ -5,7 +5,9 @@ go 1.23.1
 require (
 	github.com/PuerkitoBio/goquery v1.9.2
 	github.com/go-co-op/gocron v1.37.0
+	github.com/go-openapi/strfmt v0.23.0
 	github.com/gogf/gf v1.16.9
+	github.com/google/uuid v1.6.0
 	github.com/gotd/td v0.112.0
 	github.com/mymmrac/telego v0.29.2
 	github.com/slack-go/slack v0.14.0
@@ -41,10 +43,8 @@ require (
 	github.com/go-openapi/loads v0.22.0 // indirect
 	github.com/go-openapi/runtime v0.28.0 // indirect
 	github.com/go-openapi/spec v0.21.0 // indirect
-	github.com/go-openapi/strfmt v0.23.0 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/go-openapi/validate v0.24.0 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/gotd/ige v0.2.2 // indirect
 	github.com/gotd/neo v0.1.5 // indirect

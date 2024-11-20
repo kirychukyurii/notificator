@@ -61,8 +61,8 @@ type Auth struct {
 	profile *Profile
 }
 
-// Login Skype by web auth
-func Login(username, password string) (*Auth, error) {
+// login Skype by web auth
+func login(username, password string) (*Auth, error) {
 	if username == "" {
 		return nil, fmt.Errorf("username is required")
 	}
@@ -75,7 +75,7 @@ func Login(username, password string) (*Auth, error) {
 		loggedIn: false,
 	}
 
-	// Makes sure that only a single Login or Restore can happen at the same time
+	// Makes sure that only a single login or Restore can happen at the same time
 	if !atomic.CompareAndSwapUint32(&a.sessionLock, 0, 1) {
 		return nil, fmt.Errorf("login or restore already running")
 	}
@@ -146,7 +146,10 @@ func (a *Auth) AuthLive(username, password string) error {
 
 	if t == "" {
 		cookies["CkTst"] = strconv.Itoa(int(time.Now().UnixNano() / 1000000))
-		t, _ = a.sendOpid(paramsMap, PPFT, opid, cookies)
+		t, err = a.sendOpid(paramsMap, PPFT, opid, cookies)
+		if err != nil {
+			return err
+		}
 
 		if t == "" {
 			return fmt.Errorf("login: can not find 't' value in Opid response")
@@ -162,6 +165,10 @@ func (a *Auth) AuthLive(username, password string) error {
 }
 
 // SOAP authentication for Microsoft accounts with an email address as the username.
+// Microsoft accounts with two-factor authentication enabled are supported if an application-specific password
+// is provided.
+// Skype accounts must be linked to a Microsoft account with an email address, otherwise SkypeAuthErr.
+// See the exception definitions for other possible causes.
 func (a *Auth) SOAP(username, password string) error {
 	type RequestedSecurityToken struct {
 		BinarySecurityToken string `xml:"BinarySecurityToken"`
@@ -251,7 +258,7 @@ func (a *Auth) SOAP(username, password string) error {
 
 	if envelopeResult.Body.Collection.Response.ReSeToken.BinarySecurityToken == "" {
 		if envelopeResult.Fault.FaultCode == "wsse:FailedAuthentication" {
-			return fmt.Errorf("please confirm that your account password is entered correctly ")
+			return fmt.Errorf("please confirm that your account password is entered correctly")
 		}
 
 		return fmt.Errorf("get token err: can not find BinarySecurityToken")
@@ -476,6 +483,10 @@ func (a *Auth) sendOpid(paramsMap url.Values, PPFT, opid string, cookies map[str
 	}
 
 	body, _, err := req.Post(reqUrl, strings.NewReader(formData.Encode()), cookies, header)
+	if err != nil {
+		return "", fmt.Errorf("sendOpid: %w", err)
+	}
+
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(body))
 	if err != nil {
 		return "", err
@@ -484,6 +495,7 @@ func (a *Auth) sendOpid(paramsMap url.Values, PPFT, opid string, cookies map[str
 	var t string
 	doc.Find("input").Each(func(_ int, s *goquery.Selection) {
 		idt, _ := s.Attr("id")
+		fmt.Println("idt:", idt)
 		if idt == "t" {
 			t, _ = s.Attr("value")
 		}

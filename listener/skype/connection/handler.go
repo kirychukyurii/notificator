@@ -130,7 +130,10 @@ func (c *Connection) handleWithCustomHandlers(message Conversation, handlers []H
 		// ConversationLinkArr := strings.Split(message.Resource.ConversationLink, "/conversations/")
 		t, _ := time.Parse(time.RFC3339, message.Resource.ComposeTime)
 		message.Resource.Timestamp = t.Unix()
-		message.Resource.GetFromMe(c)
+		if ok := message.Resource.GetFromMe(c); ok {
+			return
+		}
+
 		if message.Resource.MessageType == "RichText" || message.Resource.MessageType == "Text" {
 			for _, h := range handlers {
 				if x, ok := h.(TextMessageHandler); ok {
