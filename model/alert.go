@@ -1,7 +1,7 @@
 package model
 
 import (
-	"fmt"
+	"strings"
 )
 
 type Alert struct {
@@ -12,5 +12,5 @@ type Alert struct {
 }
 
 func (a *Alert) String() string {
-	return fmt.Sprintf("%s: %s: %s", a.Channel, a.From, a.Text)
+	return strings.Join([]string{a.Channel, a.From, a.Text}, ": ")
 }

@@ -45,11 +45,11 @@ func (q *Queue) Process(ctx context.Context, onduty *config.Technical) {
 	for item := range q.items {
 		items = append(items, item)
 		if !q.processing.Load() {
+			q.processing.Store(true)
 			go func() {
 				q.log.Info("process alerts in group, waiting for other", wlog.Any("duration", q.wait))
 				defer q.log.Info("flush queue of sent alerts.. listening to new alerts")
 
-				q.processing.Store(true)
 				defer q.processing.Store(false)
 
 				ticker := time.NewTicker(q.wait)

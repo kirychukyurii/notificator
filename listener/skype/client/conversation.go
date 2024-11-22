@@ -1,8 +1,6 @@
-package connection
+package client
 
-import (
-	"strings"
-)
+import "strings"
 
 type Resource struct {
 	ConversationLink      string        `json:"conversationLink"`
@@ -40,7 +38,7 @@ type Resource struct {
 	} `json:"properties"`
 }
 
-func (r *Resource) GetFromMe(ce *Connection) bool {
+func (r *Resource) GetFromMe(username string) bool {
 	if r.ConversationLink != "" {
 		ConversationLinkArr := strings.Split(r.ConversationLink, "/conversations/")
 		r.Jid = ConversationLinkArr[1]
@@ -51,12 +49,22 @@ func (r *Resource) GetFromMe(ce *Connection) bool {
 		r.SendId = FromArr[1]
 	}
 
-	if ce.auth.profile != nil && ce.auth.profile.Username != "" && "8:"+ce.auth.profile.Username == r.SendId {
+	if username != "" && "8:"+username == r.SendId {
 		return true
 	}
-	
+
 	return false
 }
+
+type Presence string
+
+const (
+	PresenceOnline  Presence = "Online"
+	PresenceOffline Presence = "Offline"
+	PresenceIdle    Presence = "Idle"
+	PresenceAway    Presence = "Away"
+	PresenceHidden  Presence = "Hidden"
+)
 
 type UserPresence struct {
 	Id                       string   `json:"id"`

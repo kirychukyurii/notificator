@@ -2,54 +2,56 @@ package skype
 
 import (
 	"context"
-	"sync/atomic"
+	"errors"
 
 	"github.com/webitel/wlog"
 
 	"github.com/kirychukyurii/notificator/config"
-	"github.com/kirychukyurii/notificator/listener/skype/connection"
+	"github.com/kirychukyurii/notificator/listener/skype/client"
+	"github.com/kirychukyurii/notificator/model"
 	"github.com/kirychukyurii/notificator/notify"
 )
 
 type Manager struct {
-	cli    *connection.Connection
-	listen *atomic.Bool
+	log   *wlog.Logger
+	queue *notify.Queue
+	cli   *client.Client
+
+	stopFunc context.CancelFunc
 }
 
 func New(cfg *config.SkypeConfig, log *wlog.Logger, queue *notify.Queue) (*Manager, error) {
-	c, err := connection.NewConnection(log, cfg.Login, cfg.Password)
+	c, err := client.New(log, cfg.Login, cfg.Password)
 	if err != nil {
 		return nil, err
 	}
 
-	listen := &atomic.Bool{}
-	c.AddHandler(newHandler(log, queue, listen))
-
 	return &Manager{
-		cli:    c,
-		listen: listen,
+		log:   log,
+		queue: queue,
+		cli:   c,
 	}, nil
 }
 
 func (m *Manager) Listen(ctx context.Context) error {
-	m.listen.Store(true)
-	subscribed := make(chan bool, 1)
+	ctx, m.stopFunc = context.WithCancel(ctx)
+	m.cli.AddHandler(newHandler(m.queue))
 	errCh := make(chan error, 1)
 	go func() {
-		if err := m.cli.Poll(subscribed); err != nil {
+		if err := m.cli.Poll(ctx); err != nil {
 			errCh <- err
 		}
 	}()
 
-	for {
-		select {
-		case err := <-errCh:
-			return err
-		case ok := <-subscribed:
-			if ok {
-				return nil
-			}
+	select {
+	case <-ctx.Done():
+		if !errors.Is(ctx.Err(), context.Canceled) {
+			return ctx.Err()
 		}
+
+		return nil
+	case err := <-errCh:
+		return err
 	}
 }
 
@@ -58,6 +60,21 @@ func (m *Manager) String() string {
 }
 
 func (m *Manager) Close() error {
-	m.listen.Store(false)
-	return m.cli.Unsubscribe()
+	m.stopFunc()
+	m.cli.ClearHandlers()
+
+	return nil
+}
+
+func newHandler(queue *notify.Queue) client.Handler {
+	return func(message *client.Resource) {
+		if message.MessageType == "RichText" || message.MessageType == "Text" {
+			queue.Push(&model.Alert{
+				Channel: "skype",
+				Text:    message.Content,
+				From:    message.ImDisplayName,
+				Chat:    message.ThreadTopic,
+			})
+		}
+	}
 }
