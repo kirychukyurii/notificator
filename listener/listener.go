@@ -5,7 +5,7 @@ import (
 
 	"github.com/webitel/wlog"
 
-	"github.com/kirychukyurii/notificator/config"
+	"github.com/kirychukyurii/notificator/config/listener"
 	"github.com/kirychukyurii/notificator/listener/skype"
 	"github.com/kirychukyurii/notificator/listener/telegram"
 	"github.com/kirychukyurii/notificator/notify"
@@ -21,7 +21,7 @@ type Listener interface {
 	Close() error
 }
 
-func NewListeners(log *wlog.Logger, lrs *config.Listeners, queue *notify.Queue) ([]Listener, error) {
+func NewListeners(log *wlog.Logger, lrs *listener.Listeners, queue *notify.Queue) ([]Listener, error) {
 	var (
 		listeners []Listener
 		add       = func(name string, account any, f func(l *wlog.Logger) (Listener, error)) {

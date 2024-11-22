@@ -5,6 +5,9 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/kirychukyurii/notificator/config/listener"
+	"github.com/kirychukyurii/notificator/config/notifier"
 )
 
 type Logger struct {
@@ -22,6 +25,11 @@ type Technical struct {
 	OnDuty bool
 }
 
+type HttpServer struct {
+	Bind string `yaml:"bind_address" json:"bind_address"`
+	Root string `yaml:"root" json:"root"`
+}
+
 type Config struct {
 	Timezone string `yaml:"timezone" json:"timezone"`
 
@@ -34,8 +42,10 @@ type Config struct {
 	Stop      []string      `yaml:"stop" json:"stop"`
 	GroupWait time.Duration `yaml:"group_wait" json:"group_wait"`
 
-	Listeners *Listeners `yaml:"listeners" json:"listeners"`
-	Notifiers *Notifiers `yaml:"notifiers" json:"notifiers"`
+	HttpServer *HttpServer `yaml:"http" json:"http"`
+
+	Listeners *listener.Listeners `yaml:"listeners" json:"listeners"`
+	Notifiers *notifier.Notifiers `yaml:"notifiers" json:"notifiers"`
 }
 
 func New(filename string) (*Config, error) {

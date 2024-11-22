@@ -6,6 +6,7 @@ import (
 	"github.com/webitel/wlog"
 
 	"github.com/kirychukyurii/notificator/config"
+	"github.com/kirychukyurii/notificator/config/notifier"
 	"github.com/kirychukyurii/notificator/model"
 	"github.com/kirychukyurii/notificator/notify/stdout"
 	"github.com/kirychukyurii/notificator/notify/webitel"
@@ -19,7 +20,7 @@ type Notifier interface {
 	String() string
 }
 
-func NewNotifiers(log *wlog.Logger, nrs *config.Notifiers) ([]Notifier, error) {
+func NewNotifiers(log *wlog.Logger, nrs *notifier.Notifiers) ([]Notifier, error) {
 	var (
 		notifiers []Notifier
 		add       = func(name string, account any, f func(name string, l *wlog.Logger) (Notifier, error)) {

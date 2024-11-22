@@ -14,7 +14,7 @@ import (
 
 	"github.com/valyala/fasthttp"
 
-	"github.com/kirychukyurii/notificator/config"
+	"github.com/kirychukyurii/notificator/config/notifier"
 )
 
 type Options struct {
@@ -25,7 +25,7 @@ type Options struct {
 	RetryTimeout     time.Duration
 	RetryStatusCodes []string
 
-	Authorization *config.Authorization
+	Authorization *notifier.Authorization
 }
 
 type Client struct {

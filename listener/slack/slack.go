@@ -9,7 +9,7 @@ import (
 	"github.com/slack-go/slack/socketmode"
 	"github.com/webitel/wlog"
 
-	"github.com/kirychukyurii/notificator/config"
+	"github.com/kirychukyurii/notificator/config/listener"
 )
 
 type Manager struct {
@@ -17,7 +17,7 @@ type Manager struct {
 	conn *socketmode.Client
 }
 
-func New(cfg *config.SlackConfig, log *wlog.Logger) (*Manager, error) {
+func New(cfg *listener.SlackConfig, log *wlog.Logger) (*Manager, error) {
 	cli := slack.New(cfg.BotToken, slack.OptionDebug(true), slack.OptionAppLevelToken(cfg.AppToken))
 	conn := socketmode.New(cli, socketmode.OptionDebug(true))
 

@@ -15,14 +15,14 @@ import (
 	"github.com/gotd/td/tg"
 	"github.com/webitel/wlog"
 
-	"github.com/kirychukyurii/notificator/config"
+	"github.com/kirychukyurii/notificator/config/listener"
 	"github.com/kirychukyurii/notificator/model"
 	"github.com/kirychukyurii/notificator/notify"
 )
 
 type Telegram struct {
 	log   *wlog.Logger
-	cfg   *config.TelegramConfig
+	cfg   *listener.TelegramConfig
 	queue *notify.Queue
 	cli   *telegram.Client
 	gaps  *updates.Manager
@@ -32,7 +32,7 @@ type Telegram struct {
 	stopFunc stopFunc
 }
 
-func New(cfg *config.TelegramConfig, log *wlog.Logger, queue *notify.Queue) (*Telegram, error) {
+func New(cfg *listener.TelegramConfig, log *wlog.Logger, queue *notify.Queue) (*Telegram, error) {
 	// Setting up session storage.
 	// This is needed to reuse session and not login every time.
 	sessionDir := filepath.Join("session", sessionFolder(cfg.Phone))

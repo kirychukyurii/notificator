@@ -18,17 +18,18 @@ import (
 	"github.com/webitel/wlog"
 
 	"github.com/kirychukyurii/notificator/config"
+	"github.com/kirychukyurii/notificator/config/notifier"
 	"github.com/kirychukyurii/notificator/model"
 )
 
 type Webitel struct {
 	name string
-	cfg  *config.WebitelConfig
+	cfg  *notifier.WebitelConfig
 	log  *wlog.Logger
 	cli  *client.WebitelAPI
 }
 
-func New(name string, cfg *config.WebitelConfig, log *wlog.Logger) (*Webitel, error) {
+func New(name string, cfg *notifier.WebitelConfig, log *wlog.Logger) (*Webitel, error) {
 	u, err := url.Parse(cfg.URL)
 	if err != nil {
 		return nil, err
