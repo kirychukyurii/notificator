@@ -17,7 +17,7 @@ import (
 	"github.com/kirychukyurii/notificator/config"
 	"github.com/kirychukyurii/notificator/listener"
 	"github.com/kirychukyurii/notificator/manager"
-	"github.com/kirychukyurii/notificator/notify"
+	"github.com/kirychukyurii/notificator/notifier"
 )
 
 func listenCommand(cfg *config.Config, log *wlog.Logger) *cobra.Command {
@@ -74,7 +74,7 @@ type App struct {
 	log *wlog.Logger
 
 	scheduler *listener.Scheduler
-	queue     *notify.Queue
+	queue     *notifier.Queue
 
 	mgr       *manager.Bot
 	listeners []listener.Listener
@@ -93,7 +93,7 @@ func New(cfg *config.Config, log *wlog.Logger) (*App, error) {
 	}
 
 	scheduler := listener.NewScheduler(log, timezone)
-	notifiers, err := notify.NewNotifiers(log, cfg.Notifiers)
+	notifiers, err := notifier.NewNotifiers(log, cfg.Notifiers)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +103,7 @@ func New(cfg *config.Config, log *wlog.Logger) (*App, error) {
 		return nil, err
 	}
 
-	q := notify.NewQueue(log, cfg.GroupWait, notifiers)
+	q := notifier.NewQueue(log, cfg.GroupWait, notifiers)
 	listeners, err := listener.NewListeners(log, cfg.Listeners, q)
 	if err != nil {
 		return nil, err

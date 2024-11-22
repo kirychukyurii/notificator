@@ -1,4 +1,4 @@
-package notify
+package notifier
 
 import (
 	"context"
@@ -8,8 +8,8 @@ import (
 	"github.com/kirychukyurii/notificator/config"
 	"github.com/kirychukyurii/notificator/config/notifier"
 	"github.com/kirychukyurii/notificator/model"
-	"github.com/kirychukyurii/notificator/notify/stdout"
-	"github.com/kirychukyurii/notificator/notify/webitel"
+	"github.com/kirychukyurii/notificator/notifier/stdout"
+	"github.com/kirychukyurii/notificator/notifier/webitel"
 )
 
 // Notifier notifies about alerts under constraints of the given context. It

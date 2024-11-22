@@ -17,13 +17,13 @@ import (
 
 	"github.com/kirychukyurii/notificator/config/listener"
 	"github.com/kirychukyurii/notificator/model"
-	"github.com/kirychukyurii/notificator/notify"
+	"github.com/kirychukyurii/notificator/notifier"
 )
 
 type Telegram struct {
 	log   *wlog.Logger
 	cfg   *listener.TelegramConfig
-	queue *notify.Queue
+	queue *notifier.Queue
 	cli   *telegram.Client
 	gaps  *updates.Manager
 
@@ -32,7 +32,7 @@ type Telegram struct {
 	stopFunc stopFunc
 }
 
-func New(cfg *listener.TelegramConfig, log *wlog.Logger, queue *notify.Queue) (*Telegram, error) {
+func New(cfg *listener.TelegramConfig, log *wlog.Logger, queue *notifier.Queue) (*Telegram, error) {
 	// Setting up session storage.
 	// This is needed to reuse session and not login every time.
 	sessionDir := filepath.Join("session", sessionFolder(cfg.Phone))
@@ -189,7 +189,7 @@ func sessionFolder(phone string) string {
 
 // onNewMessage handles new private messages or messages in a basic group.
 // See: https://core.telegram.org/constructor/updateNewMessage
-func onNewMessage(listen *atomic.Bool, queue *notify.Queue) tg.NewMessageHandler {
+func onNewMessage(listen *atomic.Bool, queue *notifier.Queue) tg.NewMessageHandler {
 	return func(ctx context.Context, e tg.Entities, update *tg.UpdateNewMessage) error {
 		if !listen.Load() {
 			return nil

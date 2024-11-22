@@ -9,18 +9,18 @@ import (
 	"github.com/kirychukyurii/notificator/config/listener"
 	"github.com/kirychukyurii/notificator/listener/skype/client"
 	"github.com/kirychukyurii/notificator/model"
-	"github.com/kirychukyurii/notificator/notify"
+	"github.com/kirychukyurii/notificator/notifier"
 )
 
 type Manager struct {
 	log   *wlog.Logger
-	queue *notify.Queue
+	queue *notifier.Queue
 	cli   *client.Client
 
 	stopFunc context.CancelFunc
 }
 
-func New(cfg *listener.SkypeConfig, log *wlog.Logger, queue *notify.Queue) (*Manager, error) {
+func New(cfg *listener.SkypeConfig, log *wlog.Logger, queue *notifier.Queue) (*Manager, error) {
 	c, err := client.New(log, cfg.Login, cfg.Password)
 	if err != nil {
 		return nil, err
@@ -66,7 +66,7 @@ func (m *Manager) Close() error {
 	return nil
 }
 
-func newHandler(queue *notify.Queue) client.Handler {
+func newHandler(queue *notifier.Queue) client.Handler {
 	return func(message *client.Resource) {
 		if message.MessageType == "RichText" || message.MessageType == "Text" {
 			queue.Push(&model.Alert{

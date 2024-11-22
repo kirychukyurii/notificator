@@ -8,7 +8,7 @@ import (
 	"github.com/kirychukyurii/notificator/config/listener"
 	"github.com/kirychukyurii/notificator/listener/skype"
 	"github.com/kirychukyurii/notificator/listener/telegram"
-	"github.com/kirychukyurii/notificator/notify"
+	"github.com/kirychukyurii/notificator/notifier"
 )
 
 type Listener interface {
@@ -21,7 +21,7 @@ type Listener interface {
 	Close() error
 }
 
-func NewListeners(log *wlog.Logger, lrs *listener.Listeners, queue *notify.Queue) ([]Listener, error) {
+func NewListeners(log *wlog.Logger, lrs *listener.Listeners, queue *notifier.Queue) ([]Listener, error) {
 	var (
 		listeners []Listener
 		add       = func(name string, account any, f func(l *wlog.Logger) (Listener, error)) {
