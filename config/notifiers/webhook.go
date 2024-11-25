@@ -1,4 +1,4 @@
-package notifier
+package notifiers
 
 var DefaultWebhookConfig = WebhookConfig{}
 

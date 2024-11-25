@@ -1,4 +1,4 @@
-package notifier
+package notifiers
 
 type Notifiers struct {
 	StdOut bool `yaml:"stdout" json:"stdout"`

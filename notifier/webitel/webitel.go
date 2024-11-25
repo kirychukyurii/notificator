@@ -18,18 +18,18 @@ import (
 	"github.com/webitel/wlog"
 
 	"github.com/kirychukyurii/notificator/config"
-	"github.com/kirychukyurii/notificator/config/notifier"
+	"github.com/kirychukyurii/notificator/config/notifiers"
 	"github.com/kirychukyurii/notificator/model"
 )
 
 type Webitel struct {
 	name string
-	cfg  *notifier.WebitelConfig
+	cfg  *notifiers.WebitelConfig
 	log  *wlog.Logger
 	cli  *client.WebitelAPI
 }
 
-func New(name string, cfg *notifier.WebitelConfig, log *wlog.Logger) (*Webitel, error) {
+func New(name string, cfg *notifiers.WebitelConfig, log *wlog.Logger) (*Webitel, error) {
 	u, err := url.Parse(cfg.URL)
 	if err != nil {
 		return nil, err
@@ -69,7 +69,7 @@ func (w *Webitel) Notify(ctx context.Context, technical *config.Technical, alert
 
 	variables := make(map[string]string, len(alert))
 	for i, a := range alert {
-		variables[fmt.Sprintf("alert_%d", i)] = a.String()
+		variables[fmt.Sprintf("alert-%d", i)] = a.String()
 	}
 
 	opts.Body = &models.EngineCreateMemberRequest{
@@ -88,6 +88,8 @@ func (w *Webitel) Notify(ctx context.Context, technical *config.Technical, alert
 	if _, err := w.cli.MemberService.CreateMemberWithParams(opts); err != nil {
 		return false, err
 	}
+
+	w.log.Info("create member at Webitel, wait for a call", wlog.Any("member", opts.Body))
 
 	return false, nil
 }

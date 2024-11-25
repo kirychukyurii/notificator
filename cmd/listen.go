@@ -18,6 +18,7 @@ import (
 	"github.com/kirychukyurii/notificator/listener"
 	"github.com/kirychukyurii/notificator/manager"
 	"github.com/kirychukyurii/notificator/notifier"
+	"github.com/kirychukyurii/notificator/server"
 )
 
 func listenCommand(cfg *config.Config, log *wlog.Logger) *cobra.Command {
@@ -75,6 +76,7 @@ type App struct {
 
 	scheduler *listener.Scheduler
 	queue     *notifier.Queue
+	srv       *server.Server
 
 	mgr       *manager.Bot
 	listeners []listener.Listener
@@ -104,7 +106,12 @@ func New(cfg *config.Config, log *wlog.Logger) (*App, error) {
 	}
 
 	q := notifier.NewQueue(log, cfg.GroupWait, notifiers)
-	listeners, err := listener.NewListeners(log, cfg.Listeners, q)
+	srv, err := server.New(log, cfg.HttpServer)
+	if err != nil {
+		return nil, err
+	}
+
+	listeners, err := listener.NewListeners(log, cfg.Listeners, q, srv)
 	if err != nil {
 		return nil, err
 	}
@@ -114,6 +121,7 @@ func New(cfg *config.Config, log *wlog.Logger) (*App, error) {
 		log:       log,
 		scheduler: scheduler,
 		queue:     q,
+		srv:       srv,
 		mgr:       mgr,
 		listeners: listeners,
 		startedCh: make(chan struct{}),
@@ -194,6 +202,12 @@ func (a *App) Run(ctx context.Context) error {
 			return err
 		}
 	}
+
+	go func() {
+		if err := a.srv.Start(); err != nil {
+			a.errCh <- err
+		}
+	}()
 
 	a.log.Info("app started, wait for scheduled jobs")
 

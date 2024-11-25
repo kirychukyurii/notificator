@@ -10,6 +10,9 @@ import (
 
 const ApiMsacc string = "https://login.live.com"
 
+// Login performs authentication in two ways:
+//   - Live - for accounts with Skype usernames and phone numbers (requires calling out to the MS OAuth page, and retrieving the Skype token);
+//   - SOAP - performs SOAP login (authentication with a Microsoft account email address and password (or application-specific token), using an endpoint to obtain a security token, and exchanging that for a Skype token).
 func (c *Client) Login() error {
 	c.provider = newAuthenticationProvider(c.httpcli, c.username)
 	token, expires, err := c.provider.Auth(c.password)
@@ -30,7 +33,7 @@ func (c *Client) Login() error {
 
 func (c *Client) skypeTokenWatcher(ctx context.Context) error {
 	errCh := make(chan error, 1)
-	ticker := time.NewTicker(time.Duration(c.skypeTokenExpires-100) * time.Second)
+	ticker := time.NewTicker(time.Duration(c.skypeTokenExpires-200) * time.Second)
 	defer ticker.Stop()
 
 	go func() {

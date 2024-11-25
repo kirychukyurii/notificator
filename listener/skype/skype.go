@@ -6,7 +6,7 @@ import (
 
 	"github.com/webitel/wlog"
 
-	"github.com/kirychukyurii/notificator/config/listener"
+	"github.com/kirychukyurii/notificator/config/listeners"
 	"github.com/kirychukyurii/notificator/listener/skype/client"
 	"github.com/kirychukyurii/notificator/model"
 	"github.com/kirychukyurii/notificator/notifier"
@@ -20,7 +20,7 @@ type Manager struct {
 	stopFunc context.CancelFunc
 }
 
-func New(cfg *listener.SkypeConfig, log *wlog.Logger, queue *notifier.Queue) (*Manager, error) {
+func New(cfg *listeners.SkypeConfig, log *wlog.Logger, queue *notifier.Queue) (*Manager, error) {
 	c, err := client.New(log, cfg.Login, cfg.Password)
 	if err != nil {
 		return nil, err

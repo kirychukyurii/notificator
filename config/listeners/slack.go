@@ -1,4 +1,4 @@
-package listener
+package listeners
 
 var DefaultSlackConfig = SlackConfig{}
 

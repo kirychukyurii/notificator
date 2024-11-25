@@ -6,8 +6,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/kirychukyurii/notificator/config/listener"
-	"github.com/kirychukyurii/notificator/config/notifier"
+	"github.com/kirychukyurii/notificator/config/listeners"
+	"github.com/kirychukyurii/notificator/config/notifiers"
 )
 
 type Logger struct {
@@ -44,8 +44,8 @@ type Config struct {
 
 	HttpServer *HttpServer `yaml:"http" json:"http"`
 
-	Listeners *listener.Listeners `yaml:"listeners" json:"listeners"`
-	Notifiers *notifier.Notifiers `yaml:"notifiers" json:"notifiers"`
+	Listeners *listeners.Listeners `yaml:"listeners" json:"listeners"`
+	Notifiers *notifiers.Notifiers `yaml:"notifiers" json:"notifiers"`
 }
 
 func New(filename string) (*Config, error) {

@@ -1,4 +1,4 @@
-package listener
+package listeners
 
 var DefaultWebhookConfig = WebhookConfig{}
 
@@ -9,7 +9,7 @@ type WebhookResponseMap struct {
 }
 
 type WebhookConfig struct {
-	Name        string             `yaml:"path" json:"path"`
+	Name        string             `yaml:"name" json:"name"`
 	Token       string             `yaml:"token" json:"token"`
 	ResponseMap WebhookResponseMap `yaml:"response_map" json:"response_map"`
 }

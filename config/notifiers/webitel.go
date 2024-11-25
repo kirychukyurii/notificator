@@ -1,4 +1,4 @@
-package notifier
+package notifiers
 
 var DefaultWebitelConfig = WebitelConfig{
 	Authorization: &Authorization{

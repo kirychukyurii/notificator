@@ -5,10 +5,12 @@ import (
 
 	"github.com/webitel/wlog"
 
-	"github.com/kirychukyurii/notificator/config/listener"
+	"github.com/kirychukyurii/notificator/config/listeners"
 	"github.com/kirychukyurii/notificator/listener/skype"
 	"github.com/kirychukyurii/notificator/listener/telegram"
+	"github.com/kirychukyurii/notificator/listener/webhook"
 	"github.com/kirychukyurii/notificator/notifier"
+	"github.com/kirychukyurii/notificator/server"
 )
 
 type Listener interface {
@@ -21,7 +23,7 @@ type Listener interface {
 	Close() error
 }
 
-func NewListeners(log *wlog.Logger, lrs *listener.Listeners, queue *notifier.Queue) ([]Listener, error) {
+func NewListeners(log *wlog.Logger, lrs *listeners.Listeners, queue *notifier.Queue, srv *server.Server) ([]Listener, error) {
 	var (
 		listeners []Listener
 		add       = func(name string, account any, f func(l *wlog.Logger) (Listener, error)) {
@@ -47,6 +49,10 @@ func NewListeners(log *wlog.Logger, lrs *listener.Listeners, queue *notifier.Que
 
 	for _, c := range lrs.SkypeConfigs {
 		add("skype", c.Login, func(l *wlog.Logger) (Listener, error) { return skype.New(c, l, queue) })
+	}
+
+	for _, c := range lrs.WebhookConfigs {
+		add("webhook", c.Name, func(l *wlog.Logger) (Listener, error) { return webhook.New(c, l, queue, srv) })
 	}
 
 	return listeners, nil
