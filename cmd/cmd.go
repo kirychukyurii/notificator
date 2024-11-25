@@ -35,11 +35,7 @@ func command() *cobra.Command {
 		ConsoleLevel:  "debug",
 	})
 
-	cfg, err := config.New(configPath)
-	if err != nil {
-		log.Critical("parsing config", wlog.Err(err))
-	}
-
+	cfg := new(config.Config)
 	c := &cobra.Command{
 		Use:          "notificator",
 		Short:        "Notificator - simplifier notifications delivery",
@@ -66,5 +62,5 @@ func command() *cobra.Command {
 }
 
 func flagSet(fs *pflag.FlagSet) {
-	fs.StringVarP(&configPath, "config", "c", "", "config file path")
+	fs.StringVarP(&configPath, "config", "c", configPath, "config file path")
 }

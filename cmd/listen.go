@@ -31,6 +31,10 @@ func listenCommand(cfg *config.Config, log *wlog.Logger) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := cfg.Load(configPath); err != nil {
+				return err
+			}
+
 			log.SetConsoleLevel(cfg.Logger.Level)
 			app, err := New(cfg, log)
 			if err != nil {

@@ -48,16 +48,15 @@ type Config struct {
 	Notifiers *notifiers.Notifiers `yaml:"notifiers" json:"notifiers"`
 }
 
-func New(filename string) (*Config, error) {
+func (c *Config) Load(filename string) error {
 	content, err := os.ReadFile(filename)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	cfg := &Config{}
-	if err := yaml.Unmarshal(content, cfg); err != nil {
-		return nil, err
+	if err := yaml.Unmarshal(content, c); err != nil {
+		return err
 	}
 
-	return cfg, nil
+	return nil
 }

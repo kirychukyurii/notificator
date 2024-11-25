@@ -21,7 +21,7 @@ vendor/
 
 # Go workspace file
 go.work
-config.yaml
+config.yml
 session
 
 .DS_Store
