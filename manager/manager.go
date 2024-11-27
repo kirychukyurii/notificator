@@ -59,15 +59,22 @@ func (b *Bot) Close() error {
 }
 
 func (b *Bot) SendMessage(technicals []*config.Technical) error {
-	var row []telego.InlineKeyboardButton
-	var rows [][]telego.InlineKeyboardButton
-
+	row := make([]telego.InlineKeyboardButton, 0, len(technicals))
 	for _, technical := range technicals {
 		row = append(row, tu.InlineKeyboardButton(technical.Name).WithCallbackData(technical.Phone))
-		if len(row) == 2 {
-			rows = append(rows, row)
-			row = row[:0]
+	}
+
+	var rows [][]telego.InlineKeyboardButton
+
+	chunkSize := 2
+	for i := 0; i < len(row); i += chunkSize {
+		end := i + chunkSize
+
+		if end > len(row) {
+			end = len(row)
 		}
+
+		rows = append(rows, row[i:end])
 	}
 
 	message := tu.Message(tu.ID(b.cfg.ChatID), "Choose technical").WithReplyMarkup(tu.InlineKeyboard(rows...))

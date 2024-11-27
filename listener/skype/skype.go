@@ -26,22 +26,23 @@ func New(cfg *listeners.SkypeConfig, log *wlog.Logger, queue *notifier.Queue) (*
 		return nil, err
 	}
 
+	ctx, stopFunc := context.WithCancel(context.TODO())
+	go func() {
+		if err := c.Poll(ctx); err != nil {
+			log.Error("poll events", wlog.Err(err))
+		}
+	}()
+
 	return &Manager{
-		log:   log,
-		queue: queue,
-		cli:   c,
+		log:      log,
+		queue:    queue,
+		cli:      c,
+		stopFunc: stopFunc,
 	}, nil
 }
 
 func (m *Manager) Listen(ctx context.Context) error {
-	ctx, m.stopFunc = context.WithCancel(ctx)
 	m.cli.AddHandler(newHandler(m.queue))
-	errCh := make(chan error, 1)
-	go func() {
-		if err := m.cli.Poll(ctx); err != nil {
-			errCh <- err
-		}
-	}()
 
 	select {
 	case <-ctx.Done():
@@ -50,8 +51,6 @@ func (m *Manager) Listen(ctx context.Context) error {
 		}
 
 		return nil
-	case err := <-errCh:
-		return err
 	}
 }
 
@@ -60,7 +59,10 @@ func (m *Manager) String() string {
 }
 
 func (m *Manager) Close() error {
-	m.stopFunc()
+	if m.stopFunc != nil {
+		m.stopFunc()
+	}
+
 	m.cli.ClearHandlers()
 
 	return nil

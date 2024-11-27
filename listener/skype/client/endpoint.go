@@ -69,7 +69,7 @@ func newEndpoint(log *wlog.Logger, cli *httpClient, skypeToken string) (*endpoin
 	}()
 
 	go func() {
-		if err := e.Ping(context.TODO(), 120*time.Second, 120); err != nil {
+		if err := e.Ping(context.TODO(), 45*time.Second, 120); err != nil {
 			log.Error("ping endpoint", wlog.Err(err))
 		}
 	}()
