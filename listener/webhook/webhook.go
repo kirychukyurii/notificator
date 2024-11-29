@@ -56,7 +56,7 @@ func (w *Webhook) Close() error {
 
 func (w *Webhook) handler(r *http.Request) error {
 	alert := &model.Alert{
-		Channel: w.String(),
+		Channel: w.cfg.Name,
 		Text:    r.URL.Query().Get(w.cfg.ResponseMap.Message),
 		From:    r.URL.Query().Get(w.cfg.ResponseMap.From),
 		Chat:    r.URL.Query().Get(w.cfg.ResponseMap.Chat),

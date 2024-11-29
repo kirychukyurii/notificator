@@ -68,6 +68,7 @@ func (w *Webitel) Notify(ctx context.Context, technical *config.Technical, alert
 	opts.QueueID = strconv.Itoa(w.cfg.QueueID)
 
 	variables := make(map[string]string, len(alert))
+	variables["channel"] = alert[0].Channel
 	for i, a := range alert {
 		variables[fmt.Sprintf("alert-%d", i)] = a.String()
 	}

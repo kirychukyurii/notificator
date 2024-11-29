@@ -47,7 +47,9 @@ func (q *Queue) Process(ctx context.Context, onduty *config.Technical) {
 		if !q.processing.Load() {
 			q.processing.Store(true)
 			go func() {
-				q.log.Info("process alerts in group, waiting for other", wlog.Any("duration", q.wait))
+				q.log.Info("process first alerts in group, waiting for other", wlog.Any("duration", q.wait))
+				items = q.Notify(ctx, onduty, item)
+
 				defer q.log.Info("flush queue of sent alerts.. listening to new alerts")
 
 				defer q.processing.Store(false)
@@ -57,19 +59,10 @@ func (q *Queue) Process(ctx context.Context, onduty *config.Technical) {
 
 				select {
 				case <-ticker.C:
-					q.mu.Lock()
-
-					for _, notifier := range q.notifiers {
-						ok, err := notifier.Notify(ctx, onduty, items...)
-						if err != nil {
-							q.log.Error("send notify message", wlog.Err(err), wlog.Any("retry", ok))
-						}
+					if len(items) > 0 {
+						items = q.Notify(ctx, onduty, items...)
 					}
-
-					items = items[:0]
-					q.mu.Unlock()
 				}
-
 			}()
 		}
 	}
@@ -77,4 +70,17 @@ func (q *Queue) Process(ctx context.Context, onduty *config.Technical) {
 
 func (q *Queue) Stop() {
 	close(q.items)
+}
+
+func (q *Queue) Notify(ctx context.Context, onduty *config.Technical, items ...*model.Alert) []*model.Alert {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	for _, notifier := range q.notifiers {
+		ok, err := notifier.Notify(ctx, onduty, items...)
+		if err != nil {
+			q.log.Error("send notify message", wlog.Err(err), wlog.Any("retry", ok))
+		}
+	}
+
+	return items[:0]
 }
