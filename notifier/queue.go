@@ -48,20 +48,15 @@ func (q *Queue) Process(ctx context.Context, onduty *config.Technical) {
 			q.processing.Store(true)
 			go func() {
 				q.log.Info("process first alerts in group, waiting for other", wlog.Any("duration", q.wait))
-				items = q.Notify(ctx, onduty, item)
-
-				defer q.log.Info("flush queue of sent alerts.. listening to new alerts")
-
-				defer q.processing.Store(false)
+				items = q.Notify(ctx, onduty, items...)
 
 				ticker := time.NewTicker(q.wait)
 				defer ticker.Stop()
 
 				select {
 				case <-ticker.C:
-					if len(items) > 0 {
-						items = q.Notify(ctx, onduty, items...)
-					}
+					q.log.Info("stop group wait, listening to new alert")
+					q.processing.Store(false)
 				}
 			}()
 		}
