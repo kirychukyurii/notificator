@@ -42,11 +42,10 @@ func NewBot(cfg *config.Manager, log *wlog.Logger) (*Bot, error) {
 	}
 
 	return &Bot{
-		cfg:    cfg,
-		log:    log,
-		cli:    bot,
-		bh:     bh,
-		onduty: make(chan string),
+		cfg: cfg,
+		log: log,
+		cli: bot,
+		bh:  bh,
 	}, nil
 }
 
@@ -59,6 +58,7 @@ func (b *Bot) Close() error {
 }
 
 func (b *Bot) SendMessage(technicals []*config.Technical) error {
+	b.onduty = make(chan string)
 	row := make([]telego.InlineKeyboardButton, 0, len(technicals))
 	for _, technical := range technicals {
 		row = append(row, tu.InlineKeyboardButton(technical.Name).WithCallbackData(technical.Phone))
