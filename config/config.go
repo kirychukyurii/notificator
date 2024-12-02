@@ -38,9 +38,10 @@ type Config struct {
 	Manager    *Manager     `yaml:"manager" json:"manager"`
 	Technicals []*Technical `yaml:"technicals" json:"technicals"`
 
-	Start     []string      `yaml:"start" json:"start"`
-	Stop      []string      `yaml:"stop" json:"stop"`
-	GroupWait time.Duration `yaml:"group_wait" json:"group_wait"`
+	SessionsDir string        `yaml:"sessions_dir" json:"sessions_dir"`
+	Start       []string      `yaml:"start" json:"start"`
+	Stop        []string      `yaml:"stop" json:"stop"`
+	GroupWait   time.Duration `yaml:"group_wait" json:"group_wait"`
 
 	HttpServer *HttpServer `yaml:"http" json:"http"`
 

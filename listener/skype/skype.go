@@ -59,10 +59,6 @@ func (m *Manager) String() string {
 }
 
 func (m *Manager) Close() error {
-	if m.stopFunc != nil {
-		m.stopFunc()
-	}
-
 	m.cli.ClearHandlers()
 
 	return nil

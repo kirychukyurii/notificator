@@ -32,17 +32,17 @@ type Telegram struct {
 	stopFunc stopFunc
 }
 
-func New(cfg *listeners.TelegramConfig, log *wlog.Logger, queue *notifier.Queue) (*Telegram, error) {
+func New(cfg *listeners.TelegramConfig, sessionDir string, log *wlog.Logger, queue *notifier.Queue) (*Telegram, error) {
 	// Setting up session storage.
 	// This is needed to reuse session and not login every time.
-	sessionDir := filepath.Join("session", sessionFolder(cfg.Phone))
-	if err := os.MkdirAll(sessionDir, 0700); err != nil {
+	dir := filepath.Join(sessionDir, sessionFolder(cfg.Phone))
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return nil, err
 	}
 
 	// So, we are storing session information in current directory, under subdirectory "session/phone_hash"
 	sessionStorage := &telegram.FileSessionStorage{
-		Path: filepath.Join(sessionDir, "session.json"),
+		Path: filepath.Join(dir, "session.json"),
 	}
 
 	// Dispatcher is used to register handlers for events.

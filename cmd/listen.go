@@ -115,7 +115,7 @@ func New(cfg *config.Config, log *wlog.Logger) (*App, error) {
 		return nil, err
 	}
 
-	listeners, err := listener.NewListeners(log, cfg.Listeners, q, srv)
+	listeners, err := listener.NewListeners(log, cfg, q, srv)
 	if err != nil {
 		return nil, err
 	}
@@ -132,6 +132,14 @@ func New(cfg *config.Config, log *wlog.Logger) (*App, error) {
 		eg:        &errgroup.Group{},
 	}, nil
 }
+
+// Panic recovery
+// 1. App down
+// 2. App start
+// 3. Check if time between start/stop intervals
+// 4. If yes - read onduty from file, skip next run
+// 5. Start listeners
+// 6. If no - start as regular
 
 func (a *App) Run(ctx context.Context) error {
 	// Notify anyone who might be listening that the App has finished starting.
