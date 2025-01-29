@@ -50,8 +50,8 @@ func New(cfg *listeners.TelegramConfig, sessionDir string, log *wlog.Logger, que
 
 	listen := &atomic.Bool{}
 
-	// Registering handler for new private messages or in a basic group.
 	dispatcher.OnNewMessage(onNewMessage(listen, queue))
+	dispatcher.OnNewChannelMessage(onNewChannelMessage(listen, queue))
 	gaps := updates.New(updates.Config{
 		Handler: dispatcher,
 	})
@@ -191,6 +191,37 @@ func sessionFolder(phone string) string {
 // See: https://core.telegram.org/constructor/updateNewMessage
 func onNewMessage(listen *atomic.Bool, queue *notifier.Queue) tg.NewMessageHandler {
 	return func(ctx context.Context, e tg.Entities, update *tg.UpdateNewMessage) error {
+		if !listen.Load() {
+			return nil
+		}
+
+		msg, ok := update.Message.(*tg.Message)
+		if !ok {
+			return nil
+		}
+
+		if msg.Out {
+			// Outgoing message.
+			return nil
+		}
+
+		if _, ok := msg.GetViaBotID(); ok {
+			return nil
+		}
+
+		queue.Push(&model.Alert{
+			Channel: "telegram",
+			Text:    msg.Message,
+		})
+
+		return nil
+	}
+}
+
+// onNewMessage handles new messages in channel/supergroup.
+// See: https://core.telegram.org/constructor/updateNewChannelMessage
+func onNewChannelMessage(listen *atomic.Bool, queue *notifier.Queue) tg.NewChannelMessageHandler {
+	return func(ctx context.Context, e tg.Entities, update *tg.UpdateNewChannelMessage) error {
 		if !listen.Load() {
 			return nil
 		}
