@@ -104,12 +104,12 @@ func (e *endpoint) registrationTokenProps(registrationTokenStr string) {
 		}
 	}
 
-	e.regToken = regToken
-	e.regTokenExpires = regTokenExpires
+	e.token = regToken
+	e.expires = regTokenExpires
 	if strings.Index(registrationTokenStr, "endpointId=") == -1 {
 		registrationTokenStr = registrationTokenStr + "; endpointId=" + e.id
 	} else {
-		e.regTokenProps = registrationTokenStr
+		e.tokenProps = registrationTokenStr
 	}
 }
 

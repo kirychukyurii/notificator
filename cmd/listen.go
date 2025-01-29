@@ -169,9 +169,9 @@ func (a *App) Run(ctx context.Context) error {
 				}
 			}
 
-			if err := a.mgr.Close(); err != nil {
-				return err
-			}
+			// if err := a.mgr.Close(); err != nil {
+			// 	return err
+			// }
 
 			go a.queue.Process(ctx, onduty)
 

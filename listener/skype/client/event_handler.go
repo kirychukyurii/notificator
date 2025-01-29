@@ -33,7 +33,7 @@ func (c *Client) handle(message *Conversation) {
 		}
 
 		message.Resource.Timestamp = t.Unix()
-		if ok := message.Resource.GetFromMe(c.username); ok {
+		if ok := message.Resource.GetFromMe(c.profile.username); ok {
 			c.log.Debug("skip outbound message", wlog.Any("outbound", ok))
 
 			return

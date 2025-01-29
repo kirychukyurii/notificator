@@ -4,7 +4,7 @@ import "strings"
 
 // authenticationProvider that connects via Microsoft account authentication.
 type authenticationProvider interface {
-	// Auth getting Skype token and associated expiry if known
+	// Auth getting Skype token and associated expiry if known.
 	Auth(password string) (string, string, error)
 }
 

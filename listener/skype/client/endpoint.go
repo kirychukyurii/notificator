@@ -1,7 +1,6 @@
 package client
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,28 +25,31 @@ type endpoint struct {
 	log *wlog.Logger
 	cli *httpClient
 
-	id              string
-	msgsHost        string
-	regToken        string
-	regTokenProps   string
-	regTokenExpires string
+	id       string
+	msgsHost string
+
+	token      string
+	tokenProps string
+	expires    string
 
 	skypeToken string
+
+	notify chan<- error
 
 	subscribed *atomic.Bool
 }
 
 func newEndpoint(log *wlog.Logger, cli *httpClient, skypeToken string) (*endpoint, error) {
+	if skypeToken == "" {
+		return nil, fmt.Errorf("empty token doesn't allowed")
+	}
+
 	e := &endpoint{
 		log:        log,
 		cli:        cli,
 		msgsHost:   ApiMsgshost,
 		skypeToken: skypeToken,
 		subscribed: &atomic.Bool{},
-	}
-
-	if skypeToken == "" {
-		return nil, fmt.Errorf("skype token not exist")
 	}
 
 	if err := e.registrationToken(); err != nil {
@@ -62,73 +64,14 @@ func newEndpoint(log *wlog.Logger, cli *httpClient, skypeToken string) (*endpoin
 		return nil, err
 	}
 
-	go func() {
-		if err := e.regTokenWatcher(context.TODO(), skypeToken); err != nil {
-			log.Error("registration token watcher", wlog.Err(err))
-		}
-	}()
-
-	go func() {
-		if err := e.Ping(context.TODO(), 45*time.Second, 120); err != nil {
-			log.Error("ping endpoint", wlog.Err(err))
-		}
-	}()
+	go e.endpointTokenWatcher()
+	go e.Ping(45*time.Second, 120)
 
 	return e, nil
 }
 
-// configure this endpoint to allow setting presence.
-func (e *endpoint) configure() error {
-	body := map[string]any{
-		"id":          "messagingService",
-		"type":        "EndpointPresenceDoc",
-		"selfLink":    "uri",
-		"privateInfo": map[string]any{"epname": "skype"},
-		"publicInfo": map[string]any{
-			"capabilities":     "",
-			"type":             1,
-			"skypeNameVersion": "skype.com",
-			"nodeInfo":         "xx",
-			"version":          "908/1.30.0.128"},
-	}
-
-	data, err := json.Marshal(body)
-	if err != nil {
-		return err
-	}
-
-	header := map[string]string{
-		"registrationToken": e.regTokenProps,
-		"Authentication":    e.skypeToken,
-	}
-
-	resp, err := e.cli.Request(http.MethodPut, fmt.Sprintf("%s/v1/users/ME/endpoints/%s/presenceDocs/messagingService", e.msgsHost, e.id), strings.NewReader(string(data)), nil, header)
-	if err != nil {
-		return err
-	}
-
-	defer resp.Body.Close()
-
-	return nil
-}
-
-func (e *endpoint) ValidateRegToken() bool {
-	if e.regToken == "" {
-		return false
-	}
-
-	exp, err := strconv.Atoi(e.regTokenExpires)
-	if err != nil {
-		return false
-	}
-
-	now := time.Now()
-	expires := now.Add(time.Duration(exp) * time.Second)
-	if now.After(expires) {
-		return false
-	}
-
-	return true
+func (e *endpoint) NotifyRefresh(notify chan<- error) {
+	e.notify = notify
 }
 
 // Subscribe to contact and conversation events.
@@ -145,7 +88,7 @@ func (e *endpoint) Subscribe() error {
 	}
 
 	header := map[string]string{
-		"registrationToken": e.regTokenProps,
+		"registrationToken": e.tokenProps,
 		"Authentication":    e.skypeToken,
 	}
 
@@ -178,7 +121,7 @@ func (e *endpoint) Subscribe() error {
 // Unsubscribe delete subscriptions on contact and conversation events.
 func (e *endpoint) Unsubscribe() error {
 	header := map[string]string{
-		"registrationToken": e.regTokenProps,
+		"registrationToken": e.tokenProps,
 		"Authentication":    e.skypeToken,
 	}
 
@@ -205,7 +148,7 @@ func (e *endpoint) Events() ([]*Conversation, error) {
 	}
 
 	header := map[string]string{
-		"registrationToken": e.regTokenProps,
+		"registrationToken": e.tokenProps,
 		"Authentication":    e.skypeToken,
 		"BehaviorOverride":  "redirectAs404",
 	}
@@ -261,30 +204,21 @@ func (e *endpoint) Events() ([]*Conversation, error) {
 // Ping sends a keep-alive request for the endpoint.
 // Endpoints must be kept alive by regularly pinging them.
 // Skype for Web does this roughly every 45 seconds, sending a timeout value of 12.
-// Blocked until context is done or error received.
-func (e *endpoint) Ping(ctx context.Context, interval time.Duration, timeout int) error {
-	errCh := make(chan error, 1)
+func (e *endpoint) Ping(interval time.Duration, timeout int) {
+	e.log.Debug("create ping endpoint watcher for sending keep-alive request",
+		wlog.String("msgs.host", e.msgsHost), wlog.String("endpoint.id", e.id),
+		wlog.String("timeout", strconv.Itoa(timeout)))
+
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				if err := e.ping(timeout); err != nil {
-					errCh <- err
-				}
+	for {
+		select {
+		case <-ticker.C:
+			if err := e.ping(timeout); err != nil {
+				e.notify <- err
 			}
 		}
-	}()
-
-	e.log.Debug("create ping endpoint watcher for sending keep-alive request", wlog.String("msgs_host", e.msgsHost), wlog.String("id", e.id), wlog.String("timeout", strconv.Itoa(timeout)))
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case err := <-errCh:
-		return err
 	}
 }
 
@@ -299,7 +233,7 @@ func (e *endpoint) ping(timeout int) error {
 	}
 
 	header := map[string]string{
-		"Registrationtoken": e.regTokenProps,
+		"Registrationtoken": e.tokenProps,
 		"Authentication":    e.skypeToken,
 	}
 
@@ -317,41 +251,57 @@ func (e *endpoint) ping(timeout int) error {
 	return nil
 }
 
-// regTokenWatcher watch registration token expires and renews
+// endpointTokenWatcher watch registration token expires and renews
 // token with its endpoint. Also subscribe to events on new endpoint.
-// Blocked until context is done or error returned.
-func (e *endpoint) regTokenWatcher(ctx context.Context, skypeToken string) error {
-	errCh := make(chan error, 1)
-	exp, err := strconv.Atoi(e.regTokenExpires)
+func (e *endpoint) endpointTokenWatcher() error {
+	t, err := time.ParseDuration(e.expires + "s")
 	if err != nil {
 		return err
 	}
 
-	ticker := time.NewTicker(time.Duration(exp-100) * time.Second)
+	e.log.Debug("create registration token watcher", wlog.Duration("interval", t))
+	ticker := time.NewTicker(t)
 	defer ticker.Stop()
 
-	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				e.skypeToken = skypeToken
-				if err := e.registrationToken(); err != nil {
-					errCh <- err
-				}
-
-				if err := e.Subscribe(); err != nil {
-					errCh <- err
-				}
-			}
+	for {
+		select {
+		case <-ticker.C:
+			e.notify <- fmt.Errorf("endpoint registration token has been expired")
 		}
-	}()
+	}
+}
 
-	e.log.Debug("registration token watcher started", wlog.Any("interval", time.Duration(exp-100)*time.Second))
+// configure this endpoint to allow setting presence.
+func (e *endpoint) configure() error {
+	body := map[string]any{
+		"id":          "messagingService",
+		"type":        "EndpointPresenceDoc",
+		"selfLink":    "uri",
+		"privateInfo": map[string]any{"epname": "skype"},
+		"publicInfo": map[string]any{
+			"capabilities":     "",
+			"type":             1,
+			"skypeNameVersion": "skype.com",
+			"nodeInfo":         "xx",
+			"version":          "908/1.30.0.128"},
+	}
 
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case err := <-errCh:
+	data, err := json.Marshal(body)
+	if err != nil {
 		return err
 	}
+
+	header := map[string]string{
+		"registrationToken": e.tokenProps,
+		"Authentication":    e.skypeToken,
+	}
+
+	resp, err := e.cli.Request(http.MethodPut, fmt.Sprintf("%s/v1/users/ME/endpoints/%s/presenceDocs/messagingService", e.msgsHost, e.id), strings.NewReader(string(data)), nil, header)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	return nil
 }
