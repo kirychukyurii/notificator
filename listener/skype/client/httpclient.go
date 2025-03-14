@@ -108,6 +108,7 @@ func (c *httpClient) Request(method string, reqUrl string, reqBody io.Reader, co
 	req.Header.Set("Host", defaultDomain)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.117 Safari/537.36")
+	req.Header.Set("Clientinfo", "os=OSX; osVer=10.15.7; proc=x86; lcid=en-GB; deviceType=1; country=UA; clientName=skype4life; clientVer=1418/8.138.0.203//skype4life; timezone=Europe/Kiev")
 	for k, v := range header {
 		req.Header.Set(k, v)
 	}

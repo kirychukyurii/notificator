@@ -14,7 +14,7 @@ import (
 	"github.com/webitel/wlog"
 )
 
-const ApiMsgshost = "https://client-s.gateway.messenger.live.com"
+const ApiMsgshost = "https://msgapi.teams.live.com"
 
 // endpoint represents a single point of presence within Skype.
 // Typically, a user with multiple devices would have one
@@ -89,7 +89,7 @@ func (e *endpoint) Subscribe() error {
 
 	header := map[string]string{
 		"registrationToken": e.tokenProps,
-		"Authentication":    e.skypeToken,
+		"Authentication":    "skypetoken=" + e.skypeToken,
 	}
 
 	params, err := json.Marshal(data)
@@ -122,7 +122,7 @@ func (e *endpoint) Subscribe() error {
 func (e *endpoint) Unsubscribe() error {
 	header := map[string]string{
 		"registrationToken": e.tokenProps,
-		"Authentication":    e.skypeToken,
+		"Authentication":    "skypetoken=" + e.skypeToken,
 	}
 
 	_, _, err := e.cli.Delete(fmt.Sprintf("%s/v1/users/ME/endpoints/%s/subscriptions", e.msgsHost, e.id), nil, header)
@@ -149,7 +149,7 @@ func (e *endpoint) Events() ([]*Conversation, error) {
 
 	header := map[string]string{
 		"registrationToken": e.tokenProps,
-		"Authentication":    e.skypeToken,
+		"Authentication":    "skypetoken=" + e.skypeToken,
 		"BehaviorOverride":  "redirectAs404",
 	}
 
@@ -234,7 +234,7 @@ func (e *endpoint) ping(timeout int) error {
 
 	header := map[string]string{
 		"Registrationtoken": e.tokenProps,
-		"Authentication":    e.skypeToken,
+		"Authentication":    "skypetoken=" + e.skypeToken,
 	}
 
 	respBody, status, err := e.cli.Post(fmt.Sprintf("%s/v1/users/ME/endpoints/%s/active", e.msgsHost, e.id), strings.NewReader(string(data)), nil, header)
@@ -293,7 +293,7 @@ func (e *endpoint) configure() error {
 
 	header := map[string]string{
 		"registrationToken": e.tokenProps,
-		"Authentication":    e.skypeToken,
+		"Authentication":    "skypetoken=" + e.skypeToken,
 	}
 
 	resp, err := e.cli.Request(http.MethodPut, fmt.Sprintf("%s/v1/users/ME/endpoints/%s/presenceDocs/messagingService", e.msgsHost, e.id), strings.NewReader(string(data)), nil, header)
