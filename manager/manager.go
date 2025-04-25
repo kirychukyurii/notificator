@@ -14,6 +14,7 @@ import (
 type Bot struct {
 	cfg *config.Manager
 	log *wlog.Logger
+
 	cli *telego.Bot
 	bh  *th.BotHandler
 
@@ -57,7 +58,7 @@ func (b *Bot) Close() error {
 	return nil
 }
 
-func (b *Bot) SendMessage(technicals []*config.Technical) error {
+func (b *Bot) ChooseTechnicals(technicals []*config.Technical) error {
 	b.onduty = make(chan string)
 	row := make([]telego.InlineKeyboardButton, 0, len(technicals))
 	for _, technical := range technicals {
@@ -115,4 +116,29 @@ func (b *Bot) handle(id int) th.Handler {
 			}
 		}
 	}
+}
+
+func (b *Bot) SendMessage(message *telego.SendMessageParams) (*telego.Message, error) {
+	message.ChatID = telego.ChatID{
+		ID: b.cfg.ChatID,
+	}
+
+	m, err := b.cli.SendMessage(message)
+	if err != nil {
+		return nil, err
+	}
+
+	return m, nil
+}
+
+func (b *Bot) EditMessage(message *telego.EditMessageTextParams) error {
+	message.ChatID = telego.ChatID{
+		ID: b.cfg.ChatID,
+	}
+	
+	if _, err := b.cli.EditMessageText(message); err != nil {
+		return err
+	}
+
+	return nil
 }

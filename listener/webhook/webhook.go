@@ -61,7 +61,10 @@ func (w *Webhook) handlerFunc(r *http.Request) error {
 		Chat:    r.URL.Query().Get(w.cfg.ResponseMap.Chat),
 	}
 
-	w.queue.Push(alert)
+	w.queue.Push(&notifier.Message{
+		Channel: w.cfg.Name,
+		Content: alert,
+	})
 
 	return nil
 }

@@ -209,9 +209,12 @@ func onNewMessage(listen *atomic.Bool, queue *notifier.Queue) tg.NewMessageHandl
 			return nil
 		}
 
-		queue.Push(&model.Alert{
+		queue.Push(&notifier.Message{
 			Channel: "telegram",
-			Text:    msg.Message,
+			Content: &model.Alert{
+				Channel: "telegram",
+				Text:    msg.Message,
+			},
 		})
 
 		return nil
@@ -240,9 +243,12 @@ func onNewChannelMessage(listen *atomic.Bool, queue *notifier.Queue) tg.NewChann
 			return nil
 		}
 
-		queue.Push(&model.Alert{
+		queue.Push(&notifier.Message{
 			Channel: "telegram",
-			Text:    msg.Message,
+			Content: &model.Alert{
+				Channel: "telegram",
+				Text:    msg.Message,
+			},
 		})
 
 		return nil

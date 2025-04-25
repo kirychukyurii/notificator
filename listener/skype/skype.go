@@ -67,11 +67,14 @@ func (m *Manager) Close() error {
 func newHandler(queue *notifier.Queue) client.Handler {
 	return func(message *client.Resource) {
 		if message.MessageType == "RichText" || message.MessageType == "Text" {
-			queue.Push(&model.Alert{
+			queue.Push(&notifier.Message{
 				Channel: "skype",
-				Text:    message.Content,
-				From:    message.ImDisplayName,
-				Chat:    message.ThreadTopic,
+				Content: &model.Alert{
+					Channel: "skype",
+					Text:    message.Content,
+					From:    message.ImDisplayName,
+					Chat:    message.ThreadTopic,
+				},
 			})
 		}
 	}

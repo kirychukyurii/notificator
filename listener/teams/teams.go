@@ -16,7 +16,7 @@ type Manager struct {
 }
 
 func New(cfg *listeners.TeamsConfig, log *wlog.Logger, queue *notifier.Queue, srv *server.Server) (*Manager, error) {
-	authcli, err := newAuth(context.TODO(), cfg, log, srv)
+	authcli, err := newAuth(context.TODO(), cfg, log, srv, queue)
 	if err != nil {
 		return nil, fmt.Errorf("create authentication client: %w", err)
 	}

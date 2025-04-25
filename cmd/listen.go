@@ -110,7 +110,7 @@ func New(cfg *config.Config, log *wlog.Logger) (*App, error) {
 		return nil, err
 	}
 
-	q := notifier.NewQueue(log, cfg.GroupWait, notifiers)
+	q := notifier.NewQueue(log, cfg.GroupWait, notifiers, mgr)
 	srv, err := server.New(log, cfg.HttpServer)
 	if err != nil {
 		return nil, err
@@ -155,6 +155,8 @@ func (a *App) Run(ctx context.Context) error {
 		}
 	}()
 
+	go a.queue.Process(ctx)
+
 	// FIXME: Wait until all listeners are initialized blocked app and dont allow to exit
 	<-a.initializedListeners
 
@@ -165,7 +167,7 @@ func (a *App) Run(ctx context.Context) error {
 	for i, start := range a.cfg.Start {
 		f := func(job gocron.Job) error {
 			logSchedJob(job)
-			if err := a.mgr.SendMessage(a.cfg.Technicals); err != nil {
+			if err := a.mgr.ChooseTechnicals(a.cfg.Technicals); err != nil {
 				return err
 			}
 
@@ -184,8 +186,7 @@ func (a *App) Run(ctx context.Context) error {
 			// 	return err
 			// }
 
-			go a.queue.Process(ctx, onduty)
-
+			a.queue.WithOnDuty(onduty)
 			wg := &sync.WaitGroup{}
 			for _, l := range a.listeners {
 				wg.Add(1)

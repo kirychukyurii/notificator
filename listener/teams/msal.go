@@ -4,12 +4,15 @@ import (
 	"context"
 	"fmt"
 	"math/rand/v2"
+	"net/http"
 	"time"
 
 	"github.com/AzureAD/microsoft-authentication-library-for-go/apps/confidential"
 	"github.com/webitel/wlog"
 
 	"github.com/kirychukyurii/notificator/config/listeners"
+	"github.com/kirychukyurii/notificator/model"
+	"github.com/kirychukyurii/notificator/notifier"
 	"github.com/kirychukyurii/notificator/server"
 )
 
@@ -29,6 +32,7 @@ var (
 type auth struct {
 	log       *wlog.Logger
 	cfg       *listeners.TeamsConfig
+	queue     *notifier.Queue
 	publicURL string
 
 	cli *confidential.Client
@@ -38,7 +42,7 @@ type auth struct {
 	errCh chan error
 }
 
-func newAuth(ctx context.Context, cfg *listeners.TeamsConfig, log *wlog.Logger, srv *server.Server) (*auth, error) {
+func newAuth(ctx context.Context, cfg *listeners.TeamsConfig, log *wlog.Logger, srv *server.Server, queue *notifier.Queue) (*auth, error) {
 	cred, err := confidential.NewCredFromSecret(cfg.ClientSecret)
 	if err != nil {
 		return nil, fmt.Errorf("create confidential credential: %w", err)
@@ -52,6 +56,7 @@ func newAuth(ctx context.Context, cfg *listeners.TeamsConfig, log *wlog.Logger, 
 	a := &auth{
 		log:       log,
 		cfg:       cfg,
+		queue:     queue,
 		publicURL: srv.PublicURL(),
 		cli:       &app,
 		code:      make(chan string),
@@ -83,8 +88,13 @@ func (a *auth) acquireToken(ctx context.Context) error {
 			return fmt.Errorf("get auth URL: %w", err)
 		}
 
-		fmt.Println(redirectURL)
-		fmt.Println("auth url:", url)
+		a.queue.Push(&notifier.Message{
+			Channel: "auth_code_url",
+			Content: &model.AuthCodeURL{
+				URL: url,
+			},
+		})
+
 		authCode := <-a.code
 		if authCode == "" {
 			return fmt.Errorf("received empty auth code")
@@ -94,6 +104,13 @@ func (a *auth) acquireToken(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("acquire token by username and password: %w", err)
 		}
+
+		a.queue.Push(&notifier.Message{
+			Channel: "resolve_auth_code_url",
+			Content: &model.AuthCodeURL{
+				URL: url,
+			},
+		})
 	}
 
 	a.token = &token
@@ -161,4 +178,17 @@ func (a *auth) tokenRefreshLoop(ctx context.Context) {
 			}
 		}
 	}()
+}
+
+func (a *auth) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
+	code := r.URL.Query().Get("code")
+	if code == "" {
+		http.Error(w, "missing code", http.StatusBadRequest)
+		return
+	}
+
+	a.code <- code
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("received code"))
 }
