@@ -5,4 +5,5 @@ type Listeners struct {
 	SlackConfigs    []*SlackConfig    `yaml:"slack_configs" json:"slack_configs"`
 	SkypeConfigs    []*SkypeConfig    `yaml:"skype_configs" json:"skype_configs"`
 	WebhookConfigs  []*WebhookConfig  `yaml:"webhook_configs" json:"webhook_configs"`
+	TeamsConfigs    []*TeamsConfig    `yaml:"teams_configs" json:"teams_configs"`
 }

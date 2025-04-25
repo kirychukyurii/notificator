@@ -10,32 +10,31 @@ import (
 	"github.com/kirychukyurii/notificator/config/listeners"
 	"github.com/kirychukyurii/notificator/model"
 	"github.com/kirychukyurii/notificator/notifier"
-	"github.com/kirychukyurii/notificator/server"
 )
 
 type Webhook struct {
 	cfg *listeners.WebhookConfig
 	log *wlog.Logger
 
-	srv   *server.Server
-	queue *notifier.Queue
+	handler *Handler
+	queue   *notifier.Queue
 }
 
-func New(cfg *listeners.WebhookConfig, log *wlog.Logger, queue *notifier.Queue, srv *server.Server) (*Webhook, error) {
-	if ok := srv.ExistsListener(cfg.Name); ok {
+func New(cfg *listeners.WebhookConfig, log *wlog.Logger, queue *notifier.Queue, handler *Handler) (*Webhook, error) {
+	if ok := handler.ExistsListener(cfg.Name); ok {
 		return nil, fmt.Errorf("webhook %s already exists", cfg.Name)
 	}
 
 	return &Webhook{
-		cfg:   cfg,
-		log:   log,
-		srv:   srv,
-		queue: queue,
+		cfg:     cfg,
+		log:     log,
+		handler: handler,
+		queue:   queue,
 	}, nil
 }
 
 func (w *Webhook) Listen(ctx context.Context) error {
-	if err := w.srv.RegisterListener(w.cfg.Name, w.cfg.Token, w.handler); err != nil {
+	if err := w.handler.RegisterListener(w.cfg.Name, w.cfg.Token, w.handlerFunc); err != nil {
 		return err
 	}
 
@@ -49,12 +48,12 @@ func (w *Webhook) String() string {
 }
 
 func (w *Webhook) Close() error {
-	w.srv.DeregisterListener(w.cfg.Name)
+	w.handler.DeregisterListener(w.cfg.Name)
 
 	return nil
 }
 
-func (w *Webhook) handler(r *http.Request) error {
+func (w *Webhook) handlerFunc(r *http.Request) error {
 	alert := &model.Alert{
 		Channel: w.cfg.Name,
 		Text:    r.URL.Query().Get(w.cfg.ResponseMap.Message),

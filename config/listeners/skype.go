@@ -3,8 +3,8 @@ package listeners
 var DefaultSkypeConfig = SkypeConfig{}
 
 type SkypeConfig struct {
-	Login    string
-	Password string
+	Login    string `yaml:"login" json:"login"`
+	Password string `yaml:"password" json:"password"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.

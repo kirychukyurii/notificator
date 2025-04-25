@@ -26,8 +26,9 @@ type Technical struct {
 }
 
 type HttpServer struct {
-	Bind string `yaml:"bind_address" json:"bind_address"`
-	Root string `yaml:"root" json:"root"`
+	PublicURL string `yaml:"public_url" json:"public_url"`
+	Bind      string `yaml:"bind_address" json:"bind_address"`
+	Root      string `yaml:"root" json:"root"`
 }
 
 type Config struct {

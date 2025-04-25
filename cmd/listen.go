@@ -86,8 +86,9 @@ type App struct {
 	listeners []listener.Listener
 
 	// Closed once the App has finished starting
-	startedCh chan struct{}
-	errCh     chan error
+	startedCh            chan struct{}
+	initializedListeners chan struct{}
+	errCh                chan error
 
 	eg *errgroup.Group
 }
@@ -115,37 +116,47 @@ func New(cfg *config.Config, log *wlog.Logger) (*App, error) {
 		return nil, err
 	}
 
-	listeners, err := listener.NewListeners(log, cfg, q, srv)
-	if err != nil {
-		return nil, err
+	app := &App{
+		cfg:                  cfg,
+		log:                  log,
+		scheduler:            scheduler,
+		queue:                q,
+		srv:                  srv,
+		mgr:                  mgr,
+		startedCh:            make(chan struct{}),
+		eg:                   &errgroup.Group{},
+		initializedListeners: make(chan struct{}),
 	}
 
-	return &App{
-		cfg:       cfg,
-		log:       log,
-		scheduler: scheduler,
-		queue:     q,
-		srv:       srv,
-		mgr:       mgr,
-		listeners: listeners,
-		startedCh: make(chan struct{}),
-		eg:        &errgroup.Group{},
-	}, nil
+	go func() {
+		app.listeners = listener.NewListeners(log, cfg, q, srv)
+		app.initializedListeners <- struct{}{}
+	}()
+
+	return app, nil
 }
 
-// Panic recovery
-// 1. App down
-// 2. App start
-// 3. Check if time between start/stop intervals
-// 4. If yes - read onduty from file, skip next run
-// 5. Start listeners
-// 6. If no - start as regular
+// TODO: Panic recovery
+// 	1. App down
+// 	2. App start
+// 	3. Check if time between start/stop intervals
+// 	4. If yes - read onduty from file, skip next run
+// 	5. Start listeners
+// 	6. If no - start as regular
 
 func (a *App) Run(ctx context.Context) error {
 	// Notify anyone who might be listening that the App has finished starting.
 	// This can be used by, e.g., app tests.
 	defer close(a.startedCh)
 	a.errCh = make(chan error, 100)
+	go func() {
+		if err := a.srv.Start(); err != nil {
+			a.errCh <- err
+		}
+	}()
+
+	// FIXME: Wait until all listeners are initialized blocked app and dont allow to exit
+	<-a.initializedListeners
 
 	logSchedJob := func(job gocron.Job) {
 		a.log.Info("start scheduled job", wlog.Any("tags", job.Tags()), wlog.Any("next_run_at", job.NextRun()), wlog.Int("run_count", job.RunCount()))
@@ -214,12 +225,6 @@ func (a *App) Run(ctx context.Context) error {
 			return err
 		}
 	}
-
-	go func() {
-		if err := a.srv.Start(); err != nil {
-			a.errCh <- err
-		}
-	}()
 
 	a.log.Info("app started, wait for scheduled jobs")
 

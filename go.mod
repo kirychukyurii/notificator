@@ -3,6 +3,7 @@ module github.com/kirychukyurii/notificator
 go 1.23.1
 
 require (
+	github.com/AzureAD/microsoft-authentication-library-for-go v1.4.2
 	github.com/PuerkitoBio/goquery v1.9.2
 	github.com/go-co-op/gocron v1.37.0
 	github.com/go-openapi/strfmt v0.23.0
@@ -45,6 +46,7 @@ require (
 	github.com/go-openapi/spec v0.21.0 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/go-openapi/validate v0.24.0 // indirect
+	github.com/golang-jwt/jwt/v5 v5.0.0 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/gotd/ige v0.2.2 // indirect
 	github.com/gotd/neo v0.1.5 // indirect
@@ -53,6 +55,7 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.6 // indirect
+	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
