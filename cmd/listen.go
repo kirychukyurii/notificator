@@ -246,6 +246,17 @@ func (a *App) Started() <-chan struct{} {
 // Cleanup stops all App services.
 func (a *App) Cleanup(ctx context.Context) {
 	a.log.Debug("app cleanup starting...")
+
+	for _, l := range a.listeners {
+		a.eg.Go(func() error {
+			if err := l.Close(); err != nil {
+				a.log.Info("close listener", wlog.Err(err), wlog.String("listener", l.String()))
+			}
+
+			return nil
+		})
+	}
+
 	if err := a.eg.Wait(); err != nil {
 		a.log.Error("cleanup resources", wlog.Err(err))
 	}
