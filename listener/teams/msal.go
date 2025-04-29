@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"net/http"
+	"net/url"
+	"path/filepath"
 	"time"
 
 	"github.com/AzureAD/microsoft-authentication-library-for-go/apps/confidential"
+	"github.com/microsoft/kiota-abstractions-go/authentication"
 	"github.com/webitel/wlog"
 
 	"github.com/kirychukyurii/notificator/config/listeners"
@@ -25,7 +28,11 @@ const (
 
 var (
 	scopes = []string{
-		"https://graph.microsoft.com/.default",
+		"openid",
+		"profile",
+		"Chat.Read",
+		"ChatMessage.Read",
+		// "https://graph.microsoft.com/.default",
 	}
 )
 
@@ -40,15 +47,18 @@ type auth struct {
 	code  chan string
 	token *confidential.AuthResult
 	errCh chan error
+
+	check *authentication.AllowedHostsValidator
 }
 
-func newAuth(ctx context.Context, cfg *listeners.TeamsConfig, log *wlog.Logger, srv *server.Server, queue *notifier.Queue) (*auth, error) {
+func newAuth(ctx context.Context, cfg *listeners.TeamsConfig, log *wlog.Logger, srv *server.Server, queue *notifier.Queue, sessionDir string) (*auth, error) {
+	c := NewDiskCache(filepath.Join(sessionDir, cfg.Login))
 	cred, err := confidential.NewCredFromSecret(cfg.ClientSecret)
 	if err != nil {
 		return nil, fmt.Errorf("create confidential credential: %w", err)
 	}
 
-	app, err := confidential.New("https://login.microsoftonline.com/"+cfg.TenantID, cfg.ClientID, cred)
+	app, err := confidential.New("https://login.microsoftonline.com/"+cfg.TenantID, cfg.ClientID, cred, confidential.WithCache(c))
 	if err != nil {
 		return nil, fmt.Errorf("create confidential client: %w", err)
 	}
@@ -71,19 +81,35 @@ func newAuth(ctx context.Context, cfg *listeners.TeamsConfig, log *wlog.Logger, 
 
 	go a.tokenRefreshLoop(ctx)
 
+	a.check, err = authentication.NewAllowedHostsValidatorErrorCheck([]string{"graph.microsoft.com"})
+	if err != nil {
+		return nil, err
+	}
+
 	return a, nil
 }
 
+func (a *auth) GetAuthorizationToken(_ context.Context, url *url.URL, _ map[string]interface{}) (string, error) {
+	a.log.Debug("prove auth token", wlog.String("url", url.String()))
+	return a.token.AccessToken, nil
+}
+
+func (a *auth) GetAllowedHostsValidator() *authentication.AllowedHostsValidator {
+	return a.check
+}
+
 func (a *auth) acquireToken(ctx context.Context) error {
-	token, err := a.cli.AcquireTokenSilent(ctx, scopes)
+	account, err := a.cli.Account(ctx, a.cfg.HomeAccountID)
+	token, err := a.cli.AcquireTokenSilent(ctx, scopes, confidential.WithSilentAccount(account))
 	if err != nil {
+		a.log.Warn("can not obtain token from cache", wlog.Err(err))
 		opts := []confidential.AuthCodeURLOption{
 			confidential.WithTenantID(a.cfg.TenantID),
 			confidential.WithLoginHint(a.cfg.Login),
 		}
 
 		redirectURL := a.publicURL + "/auth/callback"
-		url, err := a.cli.AuthCodeURL(ctx, a.cfg.ClientID, redirectURL, scopes, opts...)
+		u, err := a.cli.AuthCodeURL(ctx, a.cfg.ClientID, redirectURL, scopes, opts...)
 		if err != nil {
 			return fmt.Errorf("get auth URL: %w", err)
 		}
@@ -91,7 +117,7 @@ func (a *auth) acquireToken(ctx context.Context) error {
 		a.queue.Push(&notifier.Message{
 			Channel: "auth_code_url",
 			Content: &model.AuthCodeURL{
-				URL: url,
+				URL: u,
 			},
 		})
 
@@ -102,13 +128,13 @@ func (a *auth) acquireToken(ctx context.Context) error {
 
 		token, err = a.cli.AcquireTokenByAuthCode(ctx, authCode, redirectURL, scopes, confidential.WithTenantID(a.cfg.TenantID))
 		if err != nil {
-			return fmt.Errorf("acquire token by username and password: %w", err)
+			return fmt.Errorf("acquire token by auth code: %w", err)
 		}
 
 		a.queue.Push(&notifier.Message{
 			Channel: "resolve_auth_code_url",
 			Content: &model.AuthCodeURL{
-				URL: url,
+				URL: u,
 			},
 		})
 	}

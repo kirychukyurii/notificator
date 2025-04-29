@@ -56,7 +56,7 @@ func NewListeners(log *wlog.Logger, cfg *config.Config, queue *notifier.Queue, s
 	}
 
 	for _, c := range cfg.Listeners.TeamsConfigs {
-		add("teams", c.Login, func(l *wlog.Logger) (Listener, error) { return teams.New(c, l, queue, srv) })
+		add("teams", c.Login, func(l *wlog.Logger) (Listener, error) { return teams.New(c, l, queue, srv, cfg.SessionsDir) })
 	}
 
 	return listeners
