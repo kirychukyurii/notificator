@@ -109,7 +109,7 @@ func (m *Manager) createSubscription(ctx context.Context) error {
 			case <-ticker.C:
 				expiration = s.GetExpirationDateTime().Add(1 * time.Hour)
 				subscription.SetExpirationDateTime(&expiration)
-				s, err = m.cli.Subscriptions().BySubscriptionId(*s.GetId()).Patch(ctx, subscription, nil)
+				s, err = m.cli.Subscriptions().BySubscriptionId(*s.GetId()).Patch(ctx, subscription, nil) // FIXME: on err panic, s = nil
 				if err != nil {
 					m.log.Error("renew subscription", wlog.Err(err))
 					if isInvalidSubscriptionError(err) {

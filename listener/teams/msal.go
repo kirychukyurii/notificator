@@ -182,10 +182,12 @@ func (a *auth) acquireTokenWithRetry(ctx context.Context) error {
 
 // tokenRefreshLoop keeps the token refreshed before it expires.
 func (a *auth) tokenRefreshLoop(ctx context.Context) {
-	ticker := time.NewTicker(a.token.ExpiresOn.Sub(time.Now()))
-	defer ticker.Stop()
-
 	go func() {
+		expires := a.token.ExpiresOn.Sub(time.Now().UTC())
+		ticker := time.NewTicker(expires)
+		defer ticker.Stop()
+
+		a.log.Debug("token refresh loop started", wlog.String("expires", expires.String()))
 		for {
 			select {
 			case <-ctx.Done():
@@ -200,7 +202,9 @@ func (a *auth) tokenRefreshLoop(ctx context.Context) {
 					return
 				}
 
-				ticker.Reset(a.token.ExpiresOn.Sub(time.Now()))
+				expires = a.token.ExpiresOn.Sub(time.Now().UTC())
+				ticker.Reset(expires)
+				a.log.Debug("token refresh loop ticker reset", wlog.String("expires", expires.String()))
 			}
 		}
 	}()
